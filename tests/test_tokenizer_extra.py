@@ -174,8 +174,7 @@ class TestEncodeEdgeCases:
         assert len(result["input_ids"]) == 32
 
     def test_text_with_newlines_and_tabs(self, tok):
-        result = tok.encode("gold
-silver	oil prices", max_length=32)
+        result = tok.encode("gold\nsilver\toil prices", max_length=32)
         assert len(result["input_ids"]) == 32
 
     def test_text_with_numbers_only(self, tok):
