@@ -1,6 +1,6 @@
 # nano-finbert
 
-![CI](https://github.com/shaikn6/nano-finbert/workflows/CI/badge.svg)
+![CI](https://github.com/shaikn6/nano-finbert/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![PyTorch](https://img.shields.io/badge/pytorch-2.0%2B-ee4c2c)
 ![License](https://img.shields.io/badge/license-MIT-green)
