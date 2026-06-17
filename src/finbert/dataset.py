@@ -139,6 +139,22 @@ def load_sample_dataset(
     return FinancialPhraseDataset(path, tokenizer, max_length)
 
 
+def _collate(batch: list[dict]) -> dict:
+    """Collate a batch.
+
+    Tensor fields are stacked; variable-length metadata (``text``, ``entities``)
+    is kept as plain lists so the default collate does not try to stack ragged
+    data and raise "each element in list of batch should be of equal size".
+    """
+    return {
+        "input_ids": torch.stack([b["input_ids"] for b in batch]),
+        "attention_mask": torch.stack([b["attention_mask"] for b in batch]),
+        "label": torch.stack([b["label"] for b in batch]),
+        "text": [b["text"] for b in batch],
+        "entities": [b["entities"] for b in batch],
+    }
+
+
 def make_dataloaders(
     dataset: FinancialPhraseDataset,
     train_ratio: float = 0.8,
@@ -168,10 +184,12 @@ def make_dataloaders(
         batch_size=batch_size,
         shuffle=True,
         drop_last=False,
+        collate_fn=_collate,
     )
     val_loader = DataLoader(
         val_set,
         batch_size=batch_size,
         shuffle=False,
+        collate_fn=_collate,
     )
     return train_loader, val_loader

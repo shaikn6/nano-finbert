@@ -19,7 +19,6 @@ from finbert.model import (
     SentimentHead,
 )
 
-
 # ---------------------------------------------------------------------------
 # SentimentHead
 # ---------------------------------------------------------------------------
@@ -60,7 +59,9 @@ class TestSentimentHead:
 class TestFinancialEmbeddingExtra:
     def test_padding_idx_row_zeroed_after_init(self):
         """After NanoFinBERT._init_weights, padding row should be zero."""
-        model = NanoFinBERT(vocab_size=100, hidden_dim=32, num_layers=1, num_heads=2, max_seq_len=16)
+        model = NanoFinBERT(
+            vocab_size=100, hidden_dim=32, num_layers=1, num_heads=2, max_seq_len=16
+        )
         pad_row = model.embedding.token_embedding.weight.data[0]
         assert torch.all(pad_row == 0.0)
 
@@ -144,7 +145,8 @@ class TestFeedForwardExtra:
 
     def test_second_linear_projects_back_to_hidden(self):
         ffn = FeedForward(hidden_dim=64)
-        assert ffn.net[-1].out_features == 64
+        # net[-1] is Dropout; the projection back to hidden is the last Linear (net[-2]).
+        assert ffn.net[-2].out_features == 64
 
     def test_large_hidden_dim(self):
         ffn = FeedForward(hidden_dim=512)
@@ -182,7 +184,14 @@ class TestEncoderLayerExtra:
 class TestNanoFinBERTExtra:
     def test_config_dict_has_all_keys(self):
         model = NanoFinBERT()
-        for key in ("vocab_size", "hidden_dim", "num_layers", "num_heads", "max_seq_len", "dropout"):
+        for key in (
+            "vocab_size",
+            "hidden_dim",
+            "num_layers",
+            "num_heads",
+            "max_seq_len",
+            "dropout",
+        ):
             assert key in model.config
 
     def test_default_config_values(self):
@@ -194,26 +203,36 @@ class TestNanoFinBERTExtra:
         assert model.config["max_seq_len"] == 256
 
     def test_pooler_uses_tanh(self):
-        model = NanoFinBERT(vocab_size=100, hidden_dim=32, num_layers=1, num_heads=2, max_seq_len=16)
+        model = NanoFinBERT(
+            vocab_size=100, hidden_dim=32, num_layers=1, num_heads=2, max_seq_len=16
+        )
         has_tanh = any(isinstance(m, nn.Tanh) for m in model.pooler.modules())
         assert has_tanh
 
     def test_encoder_layers_count(self):
-        model = NanoFinBERT(vocab_size=100, hidden_dim=32, num_layers=3, num_heads=2, max_seq_len=16)
+        model = NanoFinBERT(
+            vocab_size=100, hidden_dim=32, num_layers=3, num_heads=2, max_seq_len=16
+        )
         assert len(model.encoder_layers) == 3
 
     def test_final_norm_is_layer_norm(self):
-        model = NanoFinBERT(vocab_size=100, hidden_dim=32, num_layers=1, num_heads=2, max_seq_len=16)
+        model = NanoFinBERT(
+            vocab_size=100, hidden_dim=32, num_layers=1, num_heads=2, max_seq_len=16
+        )
         assert isinstance(model.final_norm, nn.LayerNorm)
 
     def test_parameter_breakdown_sums_to_total(self):
-        model = NanoFinBERT(vocab_size=500, hidden_dim=64, num_layers=2, num_heads=4, max_seq_len=32)
+        model = NanoFinBERT(
+            vocab_size=500, hidden_dim=64, num_layers=2, num_heads=4, max_seq_len=32
+        )
         breakdown = model.parameter_breakdown()
         total = sum(breakdown.values())
         assert total == model.count_parameters()
 
     def test_forward_sentiment_logits_sum_not_zero(self):
-        model = NanoFinBERT(vocab_size=500, hidden_dim=64, num_layers=1, num_heads=2, max_seq_len=32)
+        model = NanoFinBERT(
+            vocab_size=500, hidden_dim=64, num_layers=1, num_heads=2, max_seq_len=32
+        )
         model.eval()
         ids = torch.randint(0, 500, (2, 16))
         mask = torch.ones(2, 16, dtype=torch.long)
@@ -222,7 +241,9 @@ class TestNanoFinBERTExtra:
 
     def test_pooled_output_bounded_by_tanh(self):
         """Pooler uses Tanh, so pooled_output values should be in (-1, 1)."""
-        model = NanoFinBERT(vocab_size=500, hidden_dim=64, num_layers=1, num_heads=2, max_seq_len=32)
+        model = NanoFinBERT(
+            vocab_size=500, hidden_dim=64, num_layers=1, num_heads=2, max_seq_len=32
+        )
         model.eval()
         ids = torch.randint(0, 500, (1, 8))
         out = model(ids)
@@ -230,19 +251,24 @@ class TestNanoFinBERTExtra:
         assert out["pooled_output"].abs().max().item() <= 1.0 + 1e-5
 
     def test_from_checkpoint_raises_on_missing_file(self, tmp_path):
-        with pytest.raises(Exception):
+        with pytest.raises((FileNotFoundError, RuntimeError, ValueError)):
             NanoFinBERT.from_checkpoint(str(tmp_path / "nonexistent.pt"))
 
     def test_from_checkpoint_with_full_config(self, tmp_path):
-        model = NanoFinBERT(vocab_size=200, hidden_dim=32, num_layers=1, num_heads=2, max_seq_len=16)
+        model = NanoFinBERT(
+            vocab_size=200, hidden_dim=32, num_layers=1, num_heads=2, max_seq_len=16
+        )
         path = str(tmp_path / "full.pt")
         import torch as _torch
+
         _torch.save({"config": model.config, "model_state_dict": model.state_dict()}, path)
         loaded = NanoFinBERT.from_checkpoint(path)
         assert loaded.config == model.config
 
     def test_large_batch_forward(self):
-        model = NanoFinBERT(vocab_size=500, hidden_dim=64, num_layers=2, num_heads=4, max_seq_len=64)
+        model = NanoFinBERT(
+            vocab_size=500, hidden_dim=64, num_layers=2, num_heads=4, max_seq_len=64
+        )
         model.eval()
         ids = torch.randint(0, 500, (32, 64))
         mask = torch.ones(32, 64, dtype=torch.long)
@@ -251,7 +277,9 @@ class TestNanoFinBERTExtra:
 
     def test_no_inf_in_forward_with_partial_mask(self):
         """Partial masking should not produce inf in output."""
-        model = NanoFinBERT(vocab_size=500, hidden_dim=64, num_layers=1, num_heads=2, max_seq_len=32)
+        model = NanoFinBERT(
+            vocab_size=500, hidden_dim=64, num_layers=1, num_heads=2, max_seq_len=32
+        )
         model.eval()
         ids = torch.randint(0, 500, (2, 16))
         mask = torch.ones(2, 16, dtype=torch.long)
@@ -263,19 +291,19 @@ class TestNanoFinBERTExtra:
     def test_init_weights_linear_weight_std(self):
         """Linear weights should be initialised with std ~0.02."""
         torch.manual_seed(42)
-        model = NanoFinBERT(vocab_size=500, hidden_dim=128, num_layers=2, num_heads=4, max_seq_len=64)
+        model = NanoFinBERT(
+            vocab_size=500, hidden_dim=128, num_layers=2, num_heads=4, max_seq_len=64
+        )
         # Collect std of linear weights
-        stds = [
-            m.weight.data.std().item()
-            for m in model.modules()
-            if isinstance(m, nn.Linear)
-        ]
+        stds = [m.weight.data.std().item() for m in model.modules() if isinstance(m, nn.Linear)]
         # All stds should be roughly in [0.005, 0.1] (trunc_normal with std=0.02)
         for std in stds:
             assert 0.001 < std < 0.15, f"Unexpected weight std: {std}"
 
     def test_layer_norm_init_weight_one_bias_zero(self):
-        model = NanoFinBERT(vocab_size=200, hidden_dim=32, num_layers=1, num_heads=2, max_seq_len=16)
+        model = NanoFinBERT(
+            vocab_size=200, hidden_dim=32, num_layers=1, num_heads=2, max_seq_len=16
+        )
         for m in model.modules():
             if isinstance(m, nn.LayerNorm):
                 assert torch.all(m.weight.data == 1.0)

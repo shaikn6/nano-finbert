@@ -20,7 +20,6 @@ from finbert.dataset import (
 )
 from finbert.tokenizer import FinancialTokenizer
 
-
 # ---------------------------------------------------------------------------
 # Local fixtures (self-contained — no dependency on conftest session fixtures)
 # ---------------------------------------------------------------------------
@@ -30,7 +29,11 @@ from finbert.tokenizer import FinancialTokenizer
 def sample_records():
     return [
         {"text": "Apple reported record earnings", "sentiment": "positive", "entities": ["Apple"]},
-        {"text": "Bitcoin fell on regulatory fears", "sentiment": "negative", "entities": ["Bitcoin"]},
+        {
+            "text": "Bitcoin fell on regulatory fears",
+            "sentiment": "negative",
+            "entities": ["Bitcoin"],
+        },
         {"text": "Gold prices remained flat", "sentiment": "neutral", "entities": ["Gold"]},
         {"text": "Tesla stock rally continued", "sentiment": "positive", "entities": ["Tesla"]},
         {"text": "Oil prices dropped sharply", "sentiment": "negative", "entities": []},
