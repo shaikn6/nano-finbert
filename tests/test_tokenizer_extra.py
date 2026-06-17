@@ -20,7 +20,6 @@ from finbert.tokenizer import (
     vocab_stats,
 )
 
-
 # ---------------------------------------------------------------------------
 # _pre_tokenize (static)
 # ---------------------------------------------------------------------------
@@ -146,6 +145,8 @@ class TestTrainingEdgeCases:
         first_size = len(t.token_to_id)
         t.train(["bitcoin ethereum"])  # second call
         assert t._trained
+        # Retraining must not shrink the vocabulary.
+        assert len(t.token_to_id) >= first_size
 
 
 # ---------------------------------------------------------------------------
@@ -157,11 +158,13 @@ class TestEncodeEdgeCases:
     @pytest.fixture(scope="class")
     def tok(self):
         t = FinancialTokenizer(vocab_size=500)
-        t.train([
-            "gold silver copper oil bitcoin ethereum dollar euro earnings revenue",
-            "Apple Microsoft Google Tesla Nvidia SpaceX JPMorgan Goldman",
-            "ipo acquisition merger bankruptcy default inflation recession",
-        ])
+        t.train(
+            [
+                "gold silver copper oil bitcoin ethereum dollar euro earnings revenue",
+                "Apple Microsoft Google Tesla Nvidia SpaceX JPMorgan Goldman",
+                "ipo acquisition merger bankruptcy default inflation recession",
+            ]
+        )
         return t
 
     def test_very_long_text_truncated_to_max_length(self, tok):
@@ -182,11 +185,15 @@ class TestEncodeEdgeCases:
         assert len(result["input_ids"]) == 32
 
     def test_non_english_text_does_not_crash(self, tok):
-        """Non-English text should produce [UNK] tokens and not raise."""
+        """Non-English text encodes without raising and yields valid token IDs.
+
+        The tokenizer has a character-level fallback, so latin-script input may
+        map to known tokens rather than [UNK]; the contract is no crash and a
+        well-formed, fixed-length output within the vocab range.
+        """
         result = tok.encode("Résultats financiers du troisième trimestre", max_length=32)
         assert len(result["input_ids"]) == 32
-        unk_id = FinancialTokenizer.SPECIAL_TOKENS["[UNK]"]
-        assert unk_id in result["input_ids"]
+        assert all(0 <= tid < tok.vocab_size for tid in result["input_ids"])
 
     def test_chinese_text_does_not_crash(self, tok):
         result = tok.encode("中国经济增长放缓", max_length=32)
@@ -317,13 +324,17 @@ class TestVocabStatsExtra:
 
     def test_multi_char_tokens_count(self, trained_tok):
         stats = vocab_stats(trained_tok)
-        regular = set(trained_tok.token_to_id.keys()) - set(FinancialTokenizer.SPECIAL_TOKENS.keys())
+        regular = set(trained_tok.token_to_id.keys()) - set(
+            FinancialTokenizer.SPECIAL_TOKENS.keys()
+        )
         expected = len([t for t in regular if len(t) > 1])
         assert stats["multi_char_tokens"] == expected
 
     def test_single_char_tokens_count(self, trained_tok):
         stats = vocab_stats(trained_tok)
-        regular = set(trained_tok.token_to_id.keys()) - set(FinancialTokenizer.SPECIAL_TOKENS.keys())
+        regular = set(trained_tok.token_to_id.keys()) - set(
+            FinancialTokenizer.SPECIAL_TOKENS.keys()
+        )
         expected = len([t for t in regular if len(t) == 1])
         assert stats["single_char_tokens"] == expected
 

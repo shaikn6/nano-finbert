@@ -14,16 +14,11 @@ Extended signal extractor tests for branches not covered by test_signals.py:
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock, patch
 
 import pytest
 import torch
-import torch.nn.functional as F
 
 from finbert.signals import (
-    EVENT_KEYWORDS,
-    KNOWN_ENTITIES,
-    SECTOR_KEYWORDS,
     SENTIMENT_TO_DIRECTION,
     FinancialSignal,
     SignalExtractor,
@@ -32,7 +27,6 @@ from finbert.signals import (
     _detect_sectors,
     _extract_entities,
 )
-
 
 # ---------------------------------------------------------------------------
 # SENTIMENT_TO_DIRECTION mapping
@@ -516,7 +510,11 @@ class TestSignalExtractorExtended:
         """When model_path is provided, from_checkpoint is called."""
         from finbert.model import NanoFinBERT
 
-        model = NanoFinBERT(vocab_size=200, hidden_dim=32, num_layers=1, num_heads=2, max_seq_len=16)
+        # Match the default tokenizer vocab (8000) and the extractor's encode
+        # length (256); a smaller model overflows embedding / positional tables.
+        model = NanoFinBERT(
+            vocab_size=8000, hidden_dim=32, num_layers=1, num_heads=2, max_seq_len=256
+        )
         ckpt_path = str(tmp_path / "test.pt")
         torch.save({"config": model.config, "model_state_dict": model.state_dict()}, ckpt_path)
 

@@ -8,16 +8,15 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
 
 from finbert.model import NanoFinBERT
 from finbert.train import TrainConfig, Trainer, cosine_schedule_with_warmup
-
 
 # ---------------------------------------------------------------------------
 # Helpers — build tiny synthetic DataLoaders
@@ -178,7 +177,9 @@ class TestCosineSchedule:
         for _ in range(10):
             sched.step()
         peak_lr = sched.get_last_lr()[0]
-        assert peak_lr == pytest.approx(1.0, abs=0.01)
+        # LambdaLR returns base_lr * lambda; at end of warmup lambda == 1.0,
+        # so the actual LR equals the optimiser's base lr (1e-3), not the multiplier.
+        assert peak_lr == pytest.approx(1e-3, abs=1e-5)
 
     def test_lr_decays_after_warmup(self, optimiser_and_schedule):
         opt, sched = optimiser_and_schedule
@@ -300,7 +301,7 @@ class TestTrainStep:
             loss, _ = trainer._train_step(batch)
             losses.append(loss)
         # At least the loss should be finite
-        assert all(math.isfinite(l) for l in losses)
+        assert all(math.isfinite(loss_val) for loss_val in losses)
 
 
 # ---------------------------------------------------------------------------

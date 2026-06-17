@@ -11,12 +11,12 @@ Extended API server tests to cover missing branches:
 
 from __future__ import annotations
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
-from finbert.api.server import app, _get_extractor, SignalResponse
+from finbert.api.server import SignalResponse, app
 from finbert.signals import FinancialSignal
 
 
@@ -32,28 +32,31 @@ def client():
 
 
 class TestGetExtractorGuard:
-    def test_503_when_extractor_is_none(self):
-        """Patch the module-level _extractor to None to trigger 503."""
+    def test_503_when_extractor_is_none(self, client):
+        """Patch the module-level _extractor to None to trigger 503.
+
+        Uses the already-started ``client`` fixture and patches in place; a
+        fresh ``TestClient`` context would re-run lifespan startup and reload
+        the model, undoing the patch.
+        """
         import finbert.api.server as server_module
 
         original = server_module._extractor
         try:
             server_module._extractor = None
-            with TestClient(app, raise_server_exceptions=False) as c:
-                resp = c.get("/model/info")
-                assert resp.status_code == 503
+            resp = client.get("/model/info")
+            assert resp.status_code == 503
         finally:
             server_module._extractor = original
 
-    def test_503_detail_message(self):
+    def test_503_detail_message(self, client):
         import finbert.api.server as server_module
 
         original = server_module._extractor
         try:
             server_module._extractor = None
-            with TestClient(app, raise_server_exceptions=False) as c:
-                resp = c.get("/model/info")
-                assert "not loaded" in resp.json().get("detail", "").lower()
+            resp = client.get("/model/info")
+            assert "not loaded" in resp.json().get("detail", "").lower()
         finally:
             server_module._extractor = original
 
@@ -72,9 +75,8 @@ class TestExtractErrorPath:
         original = server_module._extractor
         try:
             server_module._extractor = mock_extractor
-            with TestClient(app, raise_server_exceptions=False) as c:
-                resp = c.post("/extract", json={"text": "Apple earnings"})
-                assert resp.status_code == 500
+            resp = client.post("/extract", json={"text": "Apple earnings"})
+            assert resp.status_code == 500
         finally:
             server_module._extractor = original
 
@@ -86,10 +88,9 @@ class TestExtractErrorPath:
         original = server_module._extractor
         try:
             server_module._extractor = mock_extractor
-            with TestClient(app, raise_server_exceptions=False) as c:
-                resp = c.post("/extract", json={"text": "gold fell"})
-                detail = resp.json().get("detail", "")
-                assert "Extraction failed" in detail or "extraction" in detail.lower()
+            resp = client.post("/extract", json={"text": "gold fell"})
+            detail = resp.json().get("detail", "")
+            assert "Extraction failed" in detail or "extraction" in detail.lower()
         finally:
             server_module._extractor = original
 
@@ -100,7 +101,7 @@ class TestExtractErrorPath:
 
 
 class TestBatchErrorPath:
-    def test_batch_exception_returns_500(self):
+    def test_batch_exception_returns_500(self, client):
         import finbert.api.server as server_module
 
         mock_extractor = MagicMock()
@@ -108,13 +109,12 @@ class TestBatchErrorPath:
         original = server_module._extractor
         try:
             server_module._extractor = mock_extractor
-            with TestClient(app, raise_server_exceptions=False) as c:
-                resp = c.post("/extract/batch", json={"texts": ["gold"]})
-                assert resp.status_code == 500
+            resp = client.post("/extract/batch", json={"texts": ["gold"]})
+            assert resp.status_code == 500
         finally:
             server_module._extractor = original
 
-    def test_batch_500_detail_mentions_batch(self):
+    def test_batch_500_detail_mentions_batch(self, client):
         import finbert.api.server as server_module
 
         mock_extractor = MagicMock()
@@ -122,10 +122,9 @@ class TestBatchErrorPath:
         original = server_module._extractor
         try:
             server_module._extractor = mock_extractor
-            with TestClient(app, raise_server_exceptions=False) as c:
-                resp = c.post("/extract/batch", json={"texts": ["gold"]})
-                detail = resp.json().get("detail", "")
-                assert "Batch extraction failed" in detail or "batch" in detail.lower()
+            resp = client.post("/extract/batch", json={"texts": ["gold"]})
+            detail = resp.json().get("detail", "")
+            assert "Batch extraction failed" in detail or "batch" in detail.lower()
         finally:
             server_module._extractor = original
 
@@ -260,17 +259,16 @@ class TestHeaders:
 
 
 class TestHealthModelLoaded:
-    def test_health_model_loaded_false_when_extractor_none(self):
+    def test_health_model_loaded_false_when_extractor_none(self, client):
         """Health endpoint reflects model_loaded=False when extractor is None."""
         import finbert.api.server as server_module
 
         original = server_module._extractor
         try:
             server_module._extractor = None
-            with TestClient(app, raise_server_exceptions=False) as c:
-                resp = c.get("/health")
-                assert resp.status_code == 200
-                data = resp.json()
-                assert data["model_loaded"] is False
+            resp = client.get("/health")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["model_loaded"] is False
         finally:
             server_module._extractor = original

@@ -483,11 +483,16 @@ def _detect_sectors(text: str) -> list[str]:
 
 
 def _detect_event_type(text: str) -> str:
-    """Identify the primary event type from the text."""
+    """Identify the primary event type from the text.
+
+    Uses word-boundary matching so short keywords (e.g. ``"pe"``, ``"bid"``)
+    do not false-match inside unrelated words (``"jumped"`` → ``"pe"``).
+    """
     text_lower = text.lower()
     for event_type, keywords in EVENT_KEYWORDS.items():
-        if any(kw in text_lower for kw in keywords):
-            return event_type
+        for kw in keywords:
+            if re.search(rf"\b{re.escape(kw)}\b", text_lower):
+                return event_type
     return "general"
 
 
