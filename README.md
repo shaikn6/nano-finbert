@@ -34,6 +34,17 @@ print(signal.to_dict())
 }
 ```
 
+> **🚀 Two variants — pick what you need:**
+>
+> | | This repo (`nano-finbert`) | Production model |
+> |---|---|---|
+> | Goal | *Learn* the internals | *Use* it for real accuracy |
+> | Build | From scratch, ~2M params, annotated | MiniLM (33M) fine-tuned |
+> | Accuracy | Educational (~65–75% on tiny sample) | **95.29% held-out test** (macro-F1 0.937) |
+> | Where | Here, on GitHub | **[🤗 9mark9/finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** |
+>
+> The production model is fine-tuned on [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank) and benchmarked on a fully held-out test split — see its model card for the real per-class numbers.
+
 ---
 
 ## Architecture
@@ -134,7 +145,7 @@ nano-finbert uses a tiny educational dataset (250+ curated financial phrases) in
 - Loss at convergence: ~0.7–0.8 on training set
 - Accuracy on training set: ~65–75%
 
-For real-world accuracy, fine-tune on [Financial PhraseBank](https://www.kaggle.com/datasets/ankurzing/sentiment-analysis-for-financial-news) (4,846 labeled sentences).
+**Want real-world accuracy?** Use the fine-tuned **[finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** variant — MiniLM (33M) fine-tuned on [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank), reaching **95.29% accuracy** on a fully held-out test split.
 
 ## What's different from FinBERT / HuggingFace?
 
