@@ -65,10 +65,12 @@ class TestFinancialEmbeddingExtra:
         pad_row = model.embedding.token_embedding.weight.data[0]
         assert torch.all(pad_row == 0.0)
 
-    def test_pe_buffer_shape(self):
+    def test_position_embedding_shape(self):
         emb = FinancialEmbedding(vocab_size=200, hidden_dim=64, max_seq_len=128)
-        pe = dict(emb.named_buffers())["pe"]
-        assert pe.shape == (1, 128, 64)
+        # Learned positional embedding table: (max_seq_len, hidden_dim).
+        assert emb.position_embedding.weight.shape == (128, 64)
+        # position_ids buffer covers every position.
+        assert dict(emb.named_buffers())["position_ids"].shape == (1, 128)
 
     def test_different_seq_lengths_work(self):
         emb = FinancialEmbedding(vocab_size=200, hidden_dim=64, max_seq_len=128)
