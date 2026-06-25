@@ -235,9 +235,11 @@ class TestTrainerInit:
         trainer = _tiny_trainer(tmp_path)
         assert trainer.global_step == 0
 
-    def test_best_val_accuracy_starts_at_zero(self, tmp_path):
+    def test_best_val_accuracy_starts_below_zero(self, tmp_path):
+        # Sentinel of -1.0 (not 0.0) guarantees the first evaluation always
+        # writes a best_model checkpoint, even at 0.0 validation accuracy.
         trainer = _tiny_trainer(tmp_path)
-        assert trainer.best_val_accuracy == 0.0
+        assert trainer.best_val_accuracy == -1.0
 
     def test_history_starts_empty(self, tmp_path):
         trainer = _tiny_trainer(tmp_path)

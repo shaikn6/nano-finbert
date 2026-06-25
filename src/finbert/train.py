@@ -189,9 +189,12 @@ class Trainer:
         # Cross-entropy loss for 3-class sentiment classification
         self.criterion = nn.CrossEntropyLoss()
 
-        # Tracking
+        # Tracking. Start best accuracy below zero so the first evaluation always
+        # writes a best_model checkpoint — otherwise a model that never beats a
+        # 0.0 validation accuracy (possible on tiny/degenerate runs) would finish
+        # training with no saved checkpoint at all.
         self.global_step = 0
-        self.best_val_accuracy = 0.0
+        self.best_val_accuracy = -1.0
         self.history: list[dict] = []  # [{epoch, train_loss, val_loss, val_acc}, ...]
 
         Path(config.checkpoint_dir).mkdir(parents=True, exist_ok=True)
@@ -266,7 +269,8 @@ class Trainer:
             self.history.append(record)
 
         print("=" * 60)
-        print(f"Training complete. Best val accuracy: {self.best_val_accuracy:.3f}")
+        # Clamp the -1.0 sentinel (no evaluation ran) to 0.0 for display.
+        print(f"Training complete. Best val accuracy: {max(0.0, self.best_val_accuracy):.3f}")
         return self.history
 
     def _train_epoch(self, epoch: int) -> float:

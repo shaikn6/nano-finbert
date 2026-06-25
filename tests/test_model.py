@@ -34,9 +34,14 @@ class TestFinancialEmbedding:
         out = emb(x)
         assert out.shape == (2, 16, 64)
 
-    def test_positional_encoding_registered_as_buffer(self):
+    def test_positional_embedding_is_learned(self):
         emb = FinancialEmbedding(vocab_size=500, hidden_dim=64, max_seq_len=32)
-        assert "pe" in dict(emb.named_buffers())
+        # Positions are learned (BERT-style), not a fixed sinusoidal buffer —
+        # this keeps the position signal at the same scale as the token signal.
+        params = dict(emb.named_parameters())
+        assert "position_embedding.weight" in params
+        assert emb.position_embedding.num_embeddings == 32
+        assert emb.position_embedding.embedding_dim == 64
 
     def test_padding_idx_zero(self):
         emb = FinancialEmbedding(vocab_size=500, hidden_dim=64, max_seq_len=32)

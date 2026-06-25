@@ -22,3 +22,6 @@ htmlcov/
 .ruff_cache/
 *.ipynb_checkpoints/
 .DS_Store
+
+# Prepared datasets (Financial PhraseBank is CC BY-NC-SA 3.0 — never commit)
+data/financial_phrasebank*.json
