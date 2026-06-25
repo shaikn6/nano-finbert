@@ -4,6 +4,9 @@
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![PyTorch](https://img.shields.io/badge/pytorch-2.0%2B-ee4c2c)
 ![License](https://img.shields.io/badge/license-MIT-green)
+[![Live demo](https://img.shields.io/badge/🤗_Live_demo-Spaces-FFD21E)](https://huggingface.co/spaces/9mark9/nano-finbert-demo)
+
+> **🤗 Try it live:** [Financial Sentiment demo on Hugging Face Spaces](https://huggingface.co/spaces/9mark9/nano-finbert-demo) — powered by the production [finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment) model (95.29% held-out accuracy).
 
 **The simplest, most readable financial NLP model you can actually understand.**
 
