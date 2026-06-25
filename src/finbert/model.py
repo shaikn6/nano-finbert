@@ -25,16 +25,24 @@ import torch.nn.functional as F
 
 class FinancialEmbedding(nn.Module):
     """
-    Combines token embeddings with sinusoidal positional encodings.
+    Combines learned token and positional embeddings (BERT-style).
 
-    WHY positional encoding matters for financial text:
+    WHY positional information matters for financial text:
     In a sentence like "Tesla stock rose after earnings beat", the order of
     words carries meaning — "rose after" implies causality. Without positional
     information, the transformer sees a bag of tokens with no sense of order.
-    Sinusoidal encodings inject position information without learned parameters,
-    which generalises better to sequence lengths unseen during training.
 
-    Reference: "Attention Is All You Need" (Vaswani et al., 2017), Section 3.5.
+    WHY *learned* positions instead of fixed sinusoidal encodings:
+    The token embeddings are initialised at a small scale (std=0.02 — the BERT
+    scheme used throughout this model). Fixed sinusoidal encodings have a
+    magnitude of ~1.0, roughly two orders of magnitude larger, so they swamp
+    the token signal — the [CLS] position becomes identical for every input and
+    the encoder goes effectively blind to which tokens are present (a
+    representation collapse that pins accuracy at the majority-class baseline).
+    Learned positional embeddings are initialised at the same 0.02 scale, so
+    token and position contributions stay balanced and the model can actually
+    read the text. This matches real BERT (Devlin et al., 2019), which also
+    uses learned position embeddings.
     """
 
     def __init__(
@@ -50,25 +58,21 @@ class FinancialEmbedding(nn.Module):
         # Shape: (vocab_size, hidden_dim)
         self.token_embedding = nn.Embedding(vocab_size, hidden_dim, padding_idx=0)
 
+        # Learned positional embedding — one vector per absolute position.
+        # Initialised at the same 0.02 scale as the token embedding (see
+        # NanoFinBERT._init_weights), keeping the two signals balanced.
+        self.position_embedding = nn.Embedding(max_seq_len, hidden_dim)
+
         # Layer normalisation applied after combining embeddings and positions.
         # Stabilises training by normalising activations to zero-mean, unit-variance.
         self.layer_norm = nn.LayerNorm(hidden_dim)
         self.dropout = nn.Dropout(dropout)
 
-        # Pre-compute sinusoidal positional encodings (not learned, so register as buffer).
-        # pe[pos, 2i]   = sin(pos / 10000^(2i/d_model))
-        # pe[pos, 2i+1] = cos(pos / 10000^(2i/d_model))
-        pe = torch.zeros(max_seq_len, hidden_dim)
-        position = torch.arange(0, max_seq_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(
-            torch.arange(0, hidden_dim, 2, dtype=torch.float) * (-math.log(10000.0) / hidden_dim)
+        # Constant position ids [0, 1, ..., max_seq_len-1], sliced per forward.
+        # Registered as a buffer so it moves with the model's device but is not trained.
+        self.register_buffer(
+            "position_ids", torch.arange(max_seq_len).unsqueeze(0), persistent=False
         )
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0)  # shape: (1, max_seq_len, hidden_dim)
-
-        # Buffers are saved in state_dict but not trained.
-        self.register_buffer("pe", pe)
 
     def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
         """
@@ -80,9 +84,10 @@ class FinancialEmbedding(nn.Module):
         """
         seq_len = input_ids.size(1)
         token_emb = self.token_embedding(input_ids)
+        pos_emb = self.position_embedding(self.position_ids[:, :seq_len])
 
-        # Add positional encoding (broadcasts over batch dimension).
-        x = token_emb + self.pe[:, :seq_len, :]
+        # Add positional embedding (broadcasts over the batch dimension).
+        x = token_emb + pos_emb
         return self.dropout(self.layer_norm(x))
 
 
