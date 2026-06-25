@@ -43,7 +43,7 @@ print(signal.to_dict())
 > | Accuracy | Educational (~65–75% on tiny sample) | **95.29% held-out test** (macro-F1 0.937) |
 > | Where | Here, on GitHub | **[🤗 9mark9/finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** |
 >
-> The production model is fine-tuned on [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank) and benchmarked on a fully held-out test split — see its model card for the real per-class numbers.
+> The production model is fine-tuned on [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank) and benchmarked on a fully held-out test split. The **95.29% / macro-F1 0.937** figures are the numbers reported on that model's own Hugging Face card, not a benchmark run in *this* repo — this repo trains the educational 2M-param model from scratch and does not ship a held-out eval harness or saved weights. Treat the from-scratch model's accuracy as illustrative (~65–75% on the tiny bundled sample), and use the linked production model when you need real accuracy.
 
 ---
 
@@ -51,14 +51,25 @@ print(signal.to_dict())
 
 ```mermaid
 graph LR
-    A[Financial Text] --> B[FinancialTokenizer<br/>BPE, 8000 vocab]
-    B --> C[FinancialEmbedding<br/>token + positional]
-    C --> D[EncoderLayer × 4<br/>MHA + FFN + LN]
+    A[Financial Text] --> B[FinancialTokenizer<br/>BPE, 8000 vocab<br/>finance-seeded merges]
+    B --> C[FinancialEmbedding<br/>token + sinusoidal positional<br/>+ LayerNorm]
+    C --> D[EncoderLayer × 4<br/>MHA 4 heads + 4× FFN + LN]
     D --> E[Pooler<br/>CLS token]
-    E --> F[SentimentHead<br/>pos / neg / neutral]
-    F --> G[SignalExtractor<br/>entities + sectors + events]
+    E --> F[SentimentHead<br/>pos / neg / neutral logits]
+    F --> G[SignalExtractor]
+    R[Rule layer<br/>regex entities · sector map<br/>event classifier · impact heuristic] --> G
     G --> H[FinancialSignal JSON]
+
+    style F fill:#6366f1,color:#fff
+    style R fill:#f4a261,color:#000
 ```
+
+The blue path (`SentimentHead`) is the **learned** transformer output. The orange
+`Rule layer` (`signals.py`) is **deterministic** — regex entity tagging, a sector
+keyword map, an event-type classifier, and a 0–1 impact heuristic. The
+`SignalExtractor` fuses both into a single `FinancialSignal`. Keeping the
+structured-signal logic rule-based (not learned) is deliberate: it stays
+inspectable and needs no labelled data for entities/sectors/events.
 
 ## Model Architecture
 
@@ -71,6 +82,33 @@ graph LR
 | Vocabulary size | 8,000 |
 | Total parameters | ~2M |
 | Training device | CPU (no GPU needed) |
+
+**Tech stack:** PyTorch 2.x (model + training), a hand-written BPE tokenizer (no `tokenizers`/`transformers` dependency), FastAPI + Uvicorn (serving), pytest (404 test functions across the suite).
+
+## How it works
+
+Each stage maps to one module under `src/finbert/`, kept small and annotated so the
+data flow is readable end-to-end:
+
+1. **Tokenize** (`tokenizer.py`) — a from-scratch BPE tokenizer pre-seeded with a
+   financial vocabulary (tickers, commodities, FX pairs, M&A/earnings terms) so domain
+   tokens survive instead of being shattered into sub-words. Reserved ids: `[PAD]=0`,
+   `[UNK]=1`. Target vocab 8,000.
+2. **Embed** (`model.py → FinancialEmbedding`) — token embeddings (`padding_idx=0`) plus
+   fixed sinusoidal positional encodings, followed by LayerNorm.
+3. **Encode** (`model.py`) — 4 Transformer encoder blocks, each: multi-head self-attention
+   (4 heads, scaled dot-product, no-bias Q/K/V projections) → residual + LN → position-wise
+   FFN with 4× expansion → residual + LN.
+4. **Pool + classify** (`model.py → SentimentHead`) — CLS-token pooling into a 3-way
+   sentiment head (positive / negative / neutral logits). This is the only **learned**
+   prediction in the structured signal.
+5. **Extract signal** (`signals.py`) — a deterministic layer turns the sentiment plus the
+   raw text into a `FinancialSignal`: regex entity tagging, a sector keyword map, an
+   event-type classifier (ipo / earnings / rate_decision / merger / …), an impact heuristic
+   (0–1), and a derived bullish/bearish/neutral direction.
+
+Because steps 1–4 are written from scratch (no pretrained weights, no HuggingFace), the
+goal is comprehension over accuracy — the production variant above is the one to deploy.
 
 ## Quick Start
 
@@ -170,7 +208,7 @@ nano-finbert/
 │   ├── signals.py      # FinancialSignal extractor
 │   └── api/server.py   # FastAPI inference endpoint
 ├── data/samples/       # 250+ labeled financial phrases
-├── tests/              # pytest test suite (70%+ coverage)
+├── tests/              # pytest suite (404 test functions: model, tokenizer, signals, API)
 └── scripts/            # train.py + infer.py CLIs
 ```
 
