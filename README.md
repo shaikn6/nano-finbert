@@ -165,7 +165,7 @@ curl -X POST http://localhost:8000/extract \
 ### Train from scratch
 
 ```bash
-python scripts/train.py --epochs 5 --batch-size 32 --output checkpoints/
+python scripts/train.py --epochs 5 --batch-size 32 --checkpoint-dir checkpoints/
 ```
 
 ## Supported Signal Types
