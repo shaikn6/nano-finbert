@@ -55,7 +55,7 @@ print(signal.to_dict())
 ```mermaid
 graph LR
     A[Financial Text] --> B[FinancialTokenizer<br/>BPE, 8000 vocab<br/>finance-seeded merges]
-    B --> C[FinancialEmbedding<br/>token + sinusoidal positional<br/>+ LayerNorm]
+    B --> C[FinancialEmbedding<br/>token + learned positional<br/>+ LayerNorm]
     C --> D[EncoderLayer × 4<br/>MHA 4 heads + 4× FFN + LN]
     D --> E[Pooler<br/>CLS token]
     E --> F[SentimentHead<br/>pos / neg / neutral logits]
@@ -98,7 +98,7 @@ data flow is readable end-to-end:
    tokens survive instead of being shattered into sub-words. Reserved ids: `[PAD]=0`,
    `[UNK]=1`. Target vocab 8,000.
 2. **Embed** (`model.py → FinancialEmbedding`) — token embeddings (`padding_idx=0`) plus
-   fixed sinusoidal positional encodings, followed by LayerNorm.
+   learned positional embeddings, followed by LayerNorm.
 3. **Encode** (`model.py`) — 4 Transformer encoder blocks, each: multi-head self-attention
    (4 heads, scaled dot-product, no-bias Q/K/V projections) → residual + LN → position-wise
    FFN with 4× expansion → residual + LN.
@@ -181,10 +181,12 @@ python scripts/train.py --epochs 5 --batch-size 32 --checkpoint-dir checkpoints/
 
 nano-finbert uses a tiny educational dataset (250+ curated financial phrases) included in `data/samples/financial_phrases.json`. The training loop in `src/finbert/train.py` is heavily annotated to explain every decision.
 
-**Expected training behavior (5 epochs on sample data):**
-- Initial loss: ~1.1 (random baseline for 3-class classification)
-- Loss at convergence: ~0.7–0.8 on training set
-- Accuracy on training set: ~65–75%
+**Expected training behavior (5 epochs on sample data, via the quick-start command above):**
+- Initial train loss: ~1.1 (random baseline for 3-class classification)
+- Train loss after 5 epochs: ~0.98–0.99 (still far from convergence — 5 epochs on ~160 training examples is not enough to fit the model)
+- Validation accuracy after 5 epochs: ~45%
+
+5 epochs is enough to see the loss trending down and the schedule working, not enough to reach a well-trained model. Increase `--epochs` (e.g. 50-100) for a more thoroughly trained result.
 
 **Want real-world accuracy?** Use the fine-tuned **[finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** variant — MiniLM (33M) fine-tuned on [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank), reaching **95.29% accuracy** on a fully held-out test split.
 

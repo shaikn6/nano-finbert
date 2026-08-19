@@ -229,10 +229,15 @@ async def extract_batch(request: BatchExtractRequest) -> BatchSignalResponse:
 
 
 def main() -> None:
-    """Entry point for the `nano-finbert-serve` console script."""
+    """
+    Entry point for the `nano-finbert-serve` console script.
+
+    Defaults to binding localhost only; set HOST=0.0.0.0 to expose the
+    server on all interfaces (e.g. inside a container).
+    """
     import uvicorn
 
-    host = os.getenv("HOST", "0.0.0.0")
+    host = os.getenv("HOST", "127.0.0.1")
     port = int(os.getenv("PORT", "8000"))
     uvicorn.run("finbert.api.server:app", host=host, port=port)
 

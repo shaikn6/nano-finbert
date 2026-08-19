@@ -441,7 +441,7 @@ class NanoFinBERT(nn.Module):
     @classmethod
     def from_checkpoint(cls, path: str) -> "NanoFinBERT":
         """Load model from a saved checkpoint."""
-        checkpoint = torch.load(path, map_location="cpu", weights_only=False)
+        checkpoint = torch.load(path, map_location="cpu", weights_only=True)
         config = checkpoint["config"]
         model = cls(**config)
         model.load_state_dict(checkpoint["model_state_dict"])

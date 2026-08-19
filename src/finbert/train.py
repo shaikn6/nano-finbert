@@ -182,8 +182,13 @@ class Trainer:
         steps_per_epoch = len(train_loader)
         total_steps = steps_per_epoch * config.num_epochs
 
+        # Cap warmup at 10% of total steps so tiny datasets (few steps/epoch)
+        # don't spend the entire run stuck in the linear warmup ramp before
+        # cosine decay ever kicks in.
+        warmup_steps = min(config.warmup_steps, max(1, total_steps // 10))
+
         self.scheduler = cosine_schedule_with_warmup(
-            self.optimiser, config.warmup_steps, total_steps
+            self.optimiser, warmup_steps, total_steps
         )
 
         # Cross-entropy loss for 3-class sentiment classification
@@ -413,7 +418,7 @@ class Trainer:
         """
         Resume training from a checkpoint. Returns the epoch to resume from.
         """
-        checkpoint = torch.load(path, map_location=self.config.device, weights_only=False)
+        checkpoint = torch.load(path, map_location=self.config.device, weights_only=True)
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimiser.load_state_dict(checkpoint["optimiser_state_dict"])
         self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
