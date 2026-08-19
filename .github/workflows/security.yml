@@ -32,9 +32,10 @@ jobs:
             --severity-level medium \
             --confidence-level medium \
             --format json \
-            --output bandit-report.json || true
+            --output bandit-report.json
 
       - name: Upload bandit report
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: bandit-report
@@ -52,7 +53,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install pip-audit
-        run: pip install --no-cache-dir "pip-audit>=2.7.0"
+        run: pip install --no-cache-dir --upgrade pip "pip-audit>=2.7.0"
 
       - name: Audit dependencies
         run: |
@@ -62,9 +63,10 @@ jobs:
             pydantic>=2.7.0 \
             numpy>=1.26.0 \
             python-dotenv>=1.0.0
-          pip-audit --format json --output pip-audit-report.json || true
+          pip-audit --format json --output pip-audit-report.json
 
       - name: Upload pip-audit report
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: pip-audit-report
