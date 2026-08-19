@@ -179,7 +179,7 @@ python scripts/train.py --epochs 5 --batch-size 32 --checkpoint-dir checkpoints/
 
 ## Training
 
-nano-finbert uses a tiny educational dataset (250+ curated financial phrases) included in `data/samples/financial_phrases.json`. The training loop in `src/finbert/train.py` is heavily annotated to explain every decision.
+nano-finbert uses a tiny educational dataset (198 curated financial phrases) included in `data/samples/financial_phrases.json`. The training loop in `src/finbert/train.py` is heavily annotated to explain every decision.
 
 **Expected training behavior (5 epochs on sample data, via the quick-start command above):**
 - Initial train loss: ~1.1 (random baseline for 3-class classification)
@@ -212,7 +212,7 @@ nano-finbert/
 │   ├── train.py        # Training loop (educational)
 │   ├── signals.py      # FinancialSignal extractor
 │   └── api/server.py   # FastAPI inference endpoint
-├── data/samples/       # 250+ labeled financial phrases
+├── data/samples/       # 198 labeled financial phrases
 ├── tests/              # pytest suite (404 test functions: model, tokenizer, signals, API)
 └── scripts/            # train.py + infer.py CLIs
 ```
