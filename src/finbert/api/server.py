@@ -221,3 +221,21 @@ async def extract_batch(request: BatchExtractRequest) -> BatchSignalResponse:
         count=len(signals),
         processing_time_ms=round(elapsed_ms, 2),
     )
+
+
+# ---------------------------------------------------------------------------
+# Console script entry point
+# ---------------------------------------------------------------------------
+
+
+def main() -> None:
+    """Entry point for the `nano-finbert-serve` console script."""
+    import uvicorn
+
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("finbert.api.server:app", host=host, port=port)
+
+
+if __name__ == "__main__":
+    main()
