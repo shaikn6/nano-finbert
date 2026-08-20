@@ -3,6 +3,7 @@
 ![CI](https://github.com/shaikn6/nano-finbert/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![PyTorch](https://img.shields.io/badge/pytorch-2.0%2B-ee4c2c)
+![Tests](https://img.shields.io/badge/tests-404%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![Live demo](https://img.shields.io/badge/🤗_Live_demo-Spaces-FFD21E)](https://huggingface.co/spaces/9mark9/nano-finbert-demo)
 
