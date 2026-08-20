@@ -119,7 +119,7 @@ goal is comprehension over accuracy — the production variant above is the one 
 
 ```bash
 pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install fastapi uvicorn pydantic
+pip install numpy fastapi uvicorn pydantic
 git clone https://github.com/shaikn6/nano-finbert
 cd nano-finbert
 export PYTHONPATH=src
