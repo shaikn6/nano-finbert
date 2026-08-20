@@ -11,7 +11,7 @@
 
 **The simplest, most readable financial NLP model you can actually understand.**
 
-nano-finbert is a tiny transformer encoder (≈2M parameters) trained **from scratch** on financial text — no pretrained weights, no HuggingFace dependency, no black boxes. Inspired by Andrej Karpathy's [nanoGPT](https://github.com/karpathy/nanoGPT), every component is annotated to explain *why* it exists.
+nano-finbert is a tiny transformer encoder (**1,882,243 parameters**) built **from scratch** on financial text — its own BPE tokenizer, its own multi-head attention, its own training loop, no pretrained weights, no HuggingFace dependency, no black boxes. Inspired by Andrej Karpathy's [nanoGPT](https://github.com/karpathy/nanoGPT), every component is annotated to explain *why* it exists, not just what it does.
 
 Feed it a financial headline. Get back a structured market signal.
 
@@ -38,16 +38,23 @@ print(signal.to_dict())
 }
 ```
 
+*Sample output above is illustrative. `SignalExtractor()` with no checkpoint uses randomly
+initialized weights, so `sentiment`, `confidence`, `impact_score`, and `signal_direction`
+vary between runs. `entities`, `sectors`, and `event_type` come from the deterministic rule
+layer in `signals.py` and stay stable regardless of model weights. See
+[Training](#training) to fit real weights, or use the production model below for a trained
+result.*
+
 > **🚀 Two variants — pick what you need:**
 >
 > | | This repo (`nano-finbert`) | Production model |
 > |---|---|---|
 > | Goal | *Learn* the internals | *Use* it for real accuracy |
-> | Build | From scratch, ~2M params, annotated | MiniLM (33M) fine-tuned |
-> | Accuracy | Educational (~65–75% on tiny sample) | **95.29% held-out test** (macro-F1 0.937) |
+> | Build | From scratch, 1.88M params, annotated | MiniLM (33M) fine-tuned |
+> | Accuracy | Training loop verified end-to-end (~45% val acc, 5 epochs, 198-phrase demo set) | **95.29% held-out test** (macro-F1 0.937) |
 > | Where | Here, on GitHub | **[🤗 9mark9/finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** |
 >
-> The production model is fine-tuned on [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank) and benchmarked on a fully held-out test split. The **95.29% / macro-F1 0.937** figures are the numbers reported on that model's own Hugging Face card, not a benchmark run in *this* repo — this repo trains the educational 2M-param model from scratch and does not ship a held-out eval harness or saved weights. Treat the from-scratch model's accuracy as illustrative (~65–75% on the tiny bundled sample), and use the linked production model when you need real accuracy.
+> The production model is fine-tuned on [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank) and benchmarked on a fully held-out test split. The **95.29% / macro-F1 0.937** figures are the numbers reported on that model's own Hugging Face card, not a benchmark run in *this* repo — this repo trains the educational 1.88M-param model from scratch and does not ship a held-out eval harness or saved weights. The from-scratch model's demo-dataset accuracy (~45%, see [Training](#training)) is not a meaningful benchmark — 198 phrases is too small to fit a model on — it demonstrates that the tokenizer, architecture, and training loop work end-to-end. Use the linked production model when you need real accuracy.
 
 ---
 
@@ -84,7 +91,7 @@ inspectable and needs no labelled data for entities/sectors/events.
 | Attention heads | 4 |
 | Max sequence length | 256 tokens |
 | Vocabulary size | 8,000 |
-| Total parameters | ~2M |
+| Total parameters | 1,882,243 (embedding 1,057,024 · encoder 791,552 · norm 256 · pooler 16,512 · sentiment head 16,899) |
 | Training device | CPU (no GPU needed) |
 
 **Tech stack:** PyTorch 2.x (model + training), a hand-written BPE tokenizer (no `tokenizers`/`transformers` dependency), FastAPI + Uvicorn (serving), pytest (404 test functions across the suite).
@@ -196,7 +203,7 @@ nano-finbert uses a tiny educational dataset (198 curated financial phrases) inc
 | | nano-finbert | FinBERT (HuggingFace) |
 |---|---|---|
 | Dependencies | PyTorch only | transformers, tokenizers, huggingface-hub |
-| Model size | ~2M params | 110M params |
+| Model size | 1.88M params | 110M params |
 | Training | From scratch | Fine-tuned from BERT |
 | Readability | Educational, annotated | Production library |
 | Output | Structured `FinancialSignal` | Raw logits / token labels |
