@@ -138,12 +138,12 @@ export PYTHONPATH=src
 ```python
 from finbert.signals import SignalExtractor
 
-extractor = SignalExtractor()  # uses random weights; load a checkpoint for real inference
+extractor = SignalExtractor()  # no checkpoint passed -> random weights (see note below)
 
 # Single signal
 signal = extractor.extract("Bitcoin dropped below $60,000 as SEC regulatory pressure mounted")
 print(signal)
-# FinancialSignal(sentiment='negative', direction='bearish', confidence=0.74, impact=0.52, ...)
+# FinancialSignal(sentiment=..., direction=..., confidence=..., impact=..., event='commodity_move', sectors=['crypto'], entities=['Bitcoin'])
 
 # Batch extraction
 texts = [
@@ -155,6 +155,13 @@ signals = extractor.extract_batch(texts)
 for s in signals:
     print(f"[{s.signal_direction:7s}] [{s.event_type:15s}] {s.text[:60]}")
 ```
+
+With no checkpoint loaded, `SentimentHead` uses randomly initialized weights, so
+`sentiment`, `confidence`, `impact_score`, and `signal_direction` are meaningless and will
+come out differently every run — do not treat any specific values you see here as real
+predictions. `entities`, `sectors`, and `event_type` are computed by the deterministic rule
+layer in `signals.py` and are stable regardless of model weights. Train a checkpoint first
+(next section) for the sentiment fields to mean anything.
 
 ### Serve the API
 
