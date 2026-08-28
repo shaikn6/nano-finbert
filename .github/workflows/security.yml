@@ -57,13 +57,19 @@ jobs:
 
       - name: Audit dependencies
         run: |
+          # Install the project's runtime deps and audit the resolved set —
+          # not the ambient environment, whose pip/setuptools/wheel are build
+          # tooling, not shipped, and generate their own advisories over time.
+          pip install --no-cache-dir . --no-deps
           pip install --no-cache-dir \
-            fastapi>=0.111.0 \
-            uvicorn>=0.30.0 \
-            pydantic>=2.7.0 \
-            numpy>=1.26.0 \
-            python-dotenv>=1.0.0
-          pip-audit --format json --output pip-audit-report.json
+            "fastapi>=0.111.0" \
+            "uvicorn>=0.30.0" \
+            "pydantic>=2.7.0" \
+            "numpy>=1.26.0" \
+            "python-dotenv>=1.0.0"
+          pip freeze --exclude-editable \
+            | grep -viE '^(pip|setuptools|wheel)==' > audit-requirements.txt
+          pip-audit -r audit-requirements.txt --format json --output pip-audit-report.json
 
       - name: Upload pip-audit report
         if: always()

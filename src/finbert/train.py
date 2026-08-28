@@ -187,9 +187,7 @@ class Trainer:
         # cosine decay ever kicks in.
         warmup_steps = min(config.warmup_steps, max(1, total_steps // 10))
 
-        self.scheduler = cosine_schedule_with_warmup(
-            self.optimiser, warmup_steps, total_steps
-        )
+        self.scheduler = cosine_schedule_with_warmup(self.optimiser, warmup_steps, total_steps)
 
         # Cross-entropy loss for 3-class sentiment classification
         self.criterion = nn.CrossEntropyLoss()
