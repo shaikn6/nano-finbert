@@ -18,7 +18,8 @@ from pathlib import Path
 # Allow running from project root without installing the package
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from finbert.dataset import load_sample_dataset, make_dataloaders
+from finbert.dataset import load_sample_dataset, make_split_dataloaders
+from finbert.metrics import format_report
 from finbert.model import NanoFinBERT
 from finbert.tokenizer import build_default_tokenizer
 from finbert.train import TrainConfig, Trainer
@@ -86,10 +87,14 @@ def main() -> None:
     print(f"    Total examples: {len(dataset)}")
     print(f"    Label distribution: {dist}")
 
-    train_loader, val_loader = make_dataloaders(
-        dataset, train_ratio=0.8, batch_size=args.batch_size, seed=args.seed
+    train_loader, val_loader, test_loader = make_split_dataloaders(
+        dataset, train_ratio=0.7, val_ratio=0.15, batch_size=args.batch_size, seed=args.seed
     )
-    print(f"    Train batches: {len(train_loader)} | Val batches: {len(val_loader)}")
+    print(
+        f"    Train batches: {len(train_loader)} | "
+        f"Val batches: {len(val_loader)} | "
+        f"Test batches: {len(test_loader)}"
+    )
 
     # --- Build model ---
     print("\n[3/4] Building model...")
@@ -117,7 +122,7 @@ def main() -> None:
         log_every_n_steps=10,
     )
 
-    trainer = Trainer(model, tokenizer, train_loader, val_loader, config)
+    trainer = Trainer(model, tokenizer, train_loader, val_loader, config, test_loader=test_loader)
     history = trainer.train()
 
     print("\nTraining complete!")
@@ -129,6 +134,19 @@ def main() -> None:
 
     print(f"\nCheckpoints saved to: {args.checkpoint_dir}/")
     print("Best model: checkpoints/best_model.pt")
+
+    # --- Held-out test evaluation ---
+    # Load the best checkpoint (picked by val accuracy, never seen by the
+    # test set) and report its performance on data that was never used to
+    # train or select the model — the only honest generalisation estimate.
+    best_ckpt = Path(args.checkpoint_dir) / "best_model.pt"
+    if best_ckpt.exists():
+        trainer.load_checkpoint(str(best_ckpt))
+        test_metrics = trainer.evaluate_split(test_loader)
+        print("\n" + "=" * 60)
+        print("Held-out test set results (best checkpoint, never used for training/selection)")
+        print("=" * 60)
+        print(format_report(test_metrics["report"]))
 
 
 if __name__ == "__main__":

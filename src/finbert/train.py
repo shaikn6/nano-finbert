@@ -39,6 +39,8 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 
+from finbert.dataset import ID_TO_SENTIMENT
+from finbert.metrics import classification_report
 from finbert.model import NanoFinBERT
 
 # ---------------------------------------------------------------------------
@@ -147,11 +149,13 @@ class Trainer:
         train_loader: DataLoader,
         val_loader: DataLoader,
         config: TrainConfig,
+        test_loader: DataLoader | None = None,
     ) -> None:
         self.model = model.to(config.device)
         self.tokenizer = tokenizer
         self.train_loader = train_loader
         self.val_loader = val_loader
+        self.test_loader = test_loader
         self.config = config
 
         # AdamW: Adam with decoupled weight decay.
@@ -236,9 +240,10 @@ class Trainer:
 
             val_metrics = {}
             if epoch % self.config.eval_every_n_epochs == 0:
-                val_metrics = self.evaluate()
+                val_metrics = self.evaluate_split(self.val_loader)
                 val_loss = val_metrics["loss"]
                 val_acc = val_metrics["accuracy"]
+                val_macro_f1 = val_metrics["macro_f1"]
 
                 # Save best model based on validation accuracy
                 if val_acc > self.best_val_accuracy:
@@ -254,6 +259,7 @@ class Trainer:
                     f"train_loss={train_loss:.4f} | "
                     f"val_loss={val_loss:.4f} | "
                     f"val_acc={val_acc:.3f} | "
+                    f"val_macro_f1={val_macro_f1:.3f} | "
                     f"time={epoch_time:.1f}s"
                 )
             else:
@@ -354,20 +360,39 @@ class Trainer:
 
     def evaluate(self) -> dict[str, float]:
         """
-        Evaluate the model on the validation set.
+        Evaluate the model on the validation set (used for model selection
+        during training — see evaluate_split() for the full metrics report).
 
         Returns:
             dict with "loss" and "accuracy".
+        """
+        metrics = self.evaluate_split(self.val_loader)
+        return {"loss": metrics["loss"], "accuracy": metrics["accuracy"]}
+
+    def evaluate_split(self, loader: DataLoader) -> dict:
+        """
+        Evaluate the model on an arbitrary split (val or held-out test) and
+        return loss, accuracy, macro-F1, and per-class precision/recall/F1.
+
+        Accuracy alone can hide poor performance on minority classes (here,
+        "negative" is under-represented vs. "neutral"/"positive" in the full
+        Financial PhraseBank data) — macro-F1 weights every class equally so
+        that failure mode is visible.
+
+        Returns:
+            dict with "loss", "accuracy", "macro_f1", "report" (full
+            classification_report dict keyed by sentiment name).
         """
         self.model.eval()
         device = self.config.device
 
         total_loss = 0.0
-        total_correct = 0
         total_samples = 0
+        all_predictions: list[torch.Tensor] = []
+        all_labels: list[torch.Tensor] = []
 
         with torch.no_grad():
-            for batch in self.val_loader:
+            for batch in loader:
                 input_ids = batch["input_ids"].to(device)
                 attention_mask = batch["attention_mask"].to(device)
                 labels = batch["label"].to(device)
@@ -377,17 +402,28 @@ class Trainer:
 
                 loss = self.criterion(logits, labels)
                 total_loss += loss.item() * labels.size(0)
-
-                # Accuracy: fraction of correct predictions
-                predictions = logits.argmax(dim=-1)
-                total_correct += (predictions == labels).sum().item()
                 total_samples += labels.size(0)
 
+                all_predictions.append(logits.argmax(dim=-1).cpu())
+                all_labels.append(labels.cpu())
+
         avg_loss = total_loss / max(total_samples, 1)
-        accuracy = total_correct / max(total_samples, 1)
+
+        class_names = list(ID_TO_SENTIMENT.values())
+        if all_predictions:
+            report = classification_report(
+                torch.cat(all_predictions), torch.cat(all_labels), len(class_names), class_names
+            )
+        else:
+            report = {"accuracy": 0.0, "macro_f1": 0.0, "per_class": {}, "confusion_matrix": []}
 
         self.model.train()  # Return to training mode
-        return {"loss": avg_loss, "accuracy": accuracy}
+        return {
+            "loss": avg_loss,
+            "accuracy": report["accuracy"],
+            "macro_f1": report["macro_f1"],
+            "report": report,
+        }
 
     # ------------------------------------------------------------------
     # Checkpointing

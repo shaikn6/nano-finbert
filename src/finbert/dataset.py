@@ -155,6 +155,13 @@ def _collate(batch: list[dict]) -> dict:
     }
 
 
+def _wrap_loader(subset, batch_size: int, shuffle: bool) -> DataLoader:
+    """Wrap a dataset/subset in a DataLoader using the shared collate function."""
+    return DataLoader(
+        subset, batch_size=batch_size, shuffle=shuffle, drop_last=False, collate_fn=_collate
+    )
+
+
 def make_dataloaders(
     dataset: FinancialPhraseDataset,
     train_ratio: float = 0.8,
@@ -163,6 +170,11 @@ def make_dataloaders(
 ) -> tuple[DataLoader, DataLoader]:
     """
     Split dataset into train/val and return DataLoaders.
+
+    A thin wrapper over make_split_dataloaders() with no test split (the
+    remainder after train_ratio all goes to val) — kept for callers that
+    only need a val set for model selection and don't need a held-out
+    test set (e.g. a quick smoke-test run).
 
     Args:
         dataset:     The full FinancialPhraseDataset.
@@ -173,23 +185,58 @@ def make_dataloaders(
     Returns:
         (train_loader, val_loader)
     """
-    n_train = int(len(dataset) * train_ratio)
-    n_val = len(dataset) - n_train
-
-    generator = torch.Generator().manual_seed(seed)
-    train_set, val_set = random_split(dataset, [n_train, n_val], generator=generator)
-
-    train_loader = DataLoader(
-        train_set,
+    train_loader, val_loader, _ = make_split_dataloaders(
+        dataset,
+        train_ratio=train_ratio,
+        val_ratio=1.0 - train_ratio,
         batch_size=batch_size,
-        shuffle=True,
-        drop_last=False,
-        collate_fn=_collate,
-    )
-    val_loader = DataLoader(
-        val_set,
-        batch_size=batch_size,
-        shuffle=False,
-        collate_fn=_collate,
+        seed=seed,
     )
     return train_loader, val_loader
+
+
+def make_split_dataloaders(
+    dataset: FinancialPhraseDataset,
+    train_ratio: float = 0.7,
+    val_ratio: float = 0.15,
+    batch_size: int = 16,
+    seed: int = 42,
+) -> tuple[DataLoader, DataLoader, DataLoader]:
+    """
+    Split dataset into train/val/test and return three DataLoaders.
+
+    WHY a held-out test set: a val-only split makes "best val accuracy" the
+    number used to pick the checkpoint — not an honest estimate of
+    generalisation (the checkpoint is chosen to do well on val, so val is no
+    longer unbiased). A third, untouched test split gives a number that was
+    never used to pick anything.
+
+    Args:
+        dataset:     The full FinancialPhraseDataset.
+        train_ratio: Fraction of data used for training (default 0.7).
+        val_ratio:   Fraction used for validation/model-selection (default 0.15).
+                     The remainder (1 - train_ratio - val_ratio) becomes the test set.
+        batch_size:  Batch size for all three loaders.
+        seed:        Random seed for reproducible splits.
+
+    Returns:
+        (train_loader, val_loader, test_loader)
+    """
+    # Floor train/test from their ratios and let val absorb the remainder —
+    # not the other way round — so that a caller requesting a pure 2-way
+    # split (test_ratio == 0, via make_dataloaders()) reliably gets n_test=0
+    # rather than losing an example to rounding.
+    n_train = int(len(dataset) * train_ratio)
+    test_ratio = max(0.0, 1.0 - train_ratio - val_ratio)
+    n_test = int(len(dataset) * test_ratio)
+    n_val = len(dataset) - n_train - n_test
+
+    generator = torch.Generator().manual_seed(seed)
+    train_set, val_set, test_set = random_split(
+        dataset, [n_train, n_val, n_test], generator=generator
+    )
+
+    train_loader = _wrap_loader(train_set, batch_size, shuffle=True)
+    val_loader = _wrap_loader(val_set, batch_size, shuffle=False)
+    test_loader = _wrap_loader(test_set, batch_size, shuffle=False)
+    return train_loader, val_loader, test_loader
