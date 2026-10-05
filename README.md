@@ -3,7 +3,7 @@
 ![CI](https://github.com/shaikn6/nano-finbert/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![PyTorch](https://img.shields.io/badge/pytorch-2.0%2B-ee4c2c)
-![Tests](https://img.shields.io/badge/tests-404%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-415%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![Live demo](https://img.shields.io/badge/🤗_Live_demo-Spaces-FFD21E)](https://huggingface.co/spaces/9mark9/nano-finbert-demo)
 
@@ -51,10 +51,10 @@ result.*
 > |---|---|---|
 > | Goal | *Learn* the internals | *Use* it for real accuracy |
 > | Build | From scratch, 1.88M params, annotated | MiniLM (33M) fine-tuned |
-> | Accuracy | Training loop verified end-to-end (~45% val acc, 5 epochs, 198-phrase demo set) | **95.29% held-out test** (macro-F1 0.937) |
+> | Accuracy | **55.2% held-out test, macro-F1 0.539** (full 3,279-phrase Financial PhraseBank, 15 epochs) | **95.29% held-out test** (macro-F1 0.937) |
 > | Where | Here, on GitHub | **[🤗 9mark9/finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** |
 >
-> The production model is fine-tuned on [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank) and benchmarked on a fully held-out test split. The **95.29% / macro-F1 0.937** figures are the numbers reported on that model's own Hugging Face card, not a benchmark run in *this* repo — this repo trains the educational 1.88M-param model from scratch and does not ship a held-out eval harness or saved weights. The from-scratch model's demo-dataset accuracy (~45%, see [Training](#training)) is not a meaningful benchmark — 198 phrases is too small to fit a model on — it demonstrates that the tokenizer, architecture, and training loop work end-to-end. Use the linked production model when you need real accuracy.
+> Both models are benchmarked on a genuinely held-out test split (never used for training or checkpoint selection) of the same [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank) dataset. The production model's **95.29% / macro-F1 0.937** are the numbers on its own Hugging Face card, from a fine-tuned 33M-param MiniLM. This repo's **55.2% / macro-F1 0.539** are from training the from-scratch 1.88M-param model in this repo end-to-end (`python scripts/train.py --data-path data/financial_phrasebank.json --epochs 15`) — see [Training](#training) for the full per-class breakdown and what the gap to the production model tells you about model capacity. Use the linked production model when you need real-world accuracy; use this repo to actually understand how a transformer sentiment classifier is built.
 
 ---
 
@@ -194,16 +194,29 @@ python scripts/train.py --epochs 5 --batch-size 32 --checkpoint-dir checkpoints/
 
 ## Training
 
-nano-finbert uses a tiny educational dataset (198 curated financial phrases) included in `data/samples/financial_phrases.json`. The training loop in `src/finbert/train.py` is heavily annotated to explain every decision.
+nano-finbert ships two datasets:
+- `data/samples/financial_phrases.json` — 198 curated phrases, for a fast end-to-end smoke test.
+- `data/financial_phrasebank.json` — the full [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank), 3,279 examples (679 negative / 1,300 neutral / 1,300 positive).
 
-**Expected training behavior (5 epochs on sample data, via the quick-start command above):**
-- Initial train loss: ~1.1 (random baseline for 3-class classification)
-- Train loss after 5 epochs: ~0.98–0.99 (still far from convergence — 5 epochs on ~160 training examples is not enough to fit the model)
-- Validation accuracy after 5 epochs: ~45%
+The training loop in `src/finbert/train.py` is heavily annotated to explain every decision. Data is split into **train/val/test (70/15/15)**, not just train/val — the val set is used to pick the best checkpoint, and the test set is never touched until that checkpoint is evaluated once at the end, so the reported numbers are an honest generalization estimate rather than a number the model was indirectly selected to maximize.
 
-5 epochs is enough to see the loss trending down and the schedule working, not enough to reach a well-trained model. Increase `--epochs` (e.g. 50-100) for a more thoroughly trained result.
+**Real results — full dataset, 15 epochs, batch size 16** (`python scripts/train.py --data-path data/financial_phrasebank.json --epochs 15`):
 
-**Want real-world accuracy?** Use the fine-tuned **[finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** variant — MiniLM (33M) fine-tuned on [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank), reaching **95.29% accuracy** on a fully held-out test split.
+```
+Held-out test set results (best checkpoint, never used for training/selection)
+class      precision    recall        f1   support
+negative       0.631     0.398     0.488       103
+neutral        0.550     0.647     0.595       187
+positive       0.529     0.542     0.535       203
+
+accuracy: 0.552   macro_f1: 0.539
+```
+
+Training loss drops to ~0.12 while validation loss climbs to ~1.97 by epoch 15 — the 1.88M-param model overfits the 2,295-example training set well before 15 epochs (best val accuracy, 0.607, is hit mid-run, not at the end). That gap, and the 24-point accuracy/macro-F1 gap to the 33M-param production model below, is the real, honest cost of "from scratch, no pretraining" at this parameter count — not a bug to patch, but exactly the kind of result this repo exists to make visible and inspectable.
+
+**Quick smoke test** (5 epochs on the 198-phrase sample set, via the quick-start command above) just verifies the tokenizer/architecture/training loop work end-to-end — it's not a meaningful benchmark on its own.
+
+**Want real-world accuracy?** Use the fine-tuned **[finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** variant — MiniLM (33M) fine-tuned on the same Financial PhraseBank, reaching **95.29% accuracy / macro-F1 0.937** on its own held-out test split.
 
 ## What's different from FinBERT / HuggingFace?
 

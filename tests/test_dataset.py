@@ -17,6 +17,7 @@ from finbert.dataset import (
     FinancialPhraseDataset,
     load_sample_dataset,
     make_dataloaders,
+    make_split_dataloaders,
 )
 from finbert.tokenizer import FinancialTokenizer
 
@@ -260,3 +261,54 @@ class TestMakeDataloaders:
         # With 6 samples and 0.8 ratio: 4 train, 2 val
         assert n_train + n_val == len(dataset)
         assert n_train >= n_val  # train should be larger
+
+
+# ---------------------------------------------------------------------------
+# make_split_dataloaders (train/val/test)
+# ---------------------------------------------------------------------------
+
+
+class TestMakeSplitDataloaders:
+    def test_returns_three_dataloaders(self, dataset):
+        train_dl, val_dl, test_dl = make_split_dataloaders(dataset, batch_size=2)
+        assert isinstance(train_dl, DataLoader)
+        assert isinstance(val_dl, DataLoader)
+        assert isinstance(test_dl, DataLoader)
+
+    def test_total_samples_preserved(self, dataset):
+        train_dl, val_dl, test_dl = make_split_dataloaders(
+            dataset, batch_size=2, train_ratio=0.5, val_ratio=0.3
+        )
+        n = sum(b["input_ids"].shape[0] for b in train_dl)
+        n += sum(b["input_ids"].shape[0] for b in val_dl)
+        n += sum(b["input_ids"].shape[0] for b in test_dl)
+        assert n == len(dataset)
+
+    def test_splits_are_disjoint(self, dataset):
+        train_dl, val_dl, test_dl = make_split_dataloaders(
+            dataset, batch_size=len(dataset), train_ratio=0.5, val_ratio=0.3
+        )
+        train_texts = {t for b in train_dl for t in b["text"]}
+        val_texts = {t for b in val_dl for t in b["text"]}
+        test_texts = {t for b in test_dl for t in b["text"]}
+        assert train_texts.isdisjoint(val_texts)
+        assert train_texts.isdisjoint(test_texts)
+        assert val_texts.isdisjoint(test_texts)
+
+    def test_same_seed_produces_same_test_split(self, dataset):
+        _, _, t1 = make_split_dataloaders(dataset, batch_size=len(dataset), seed=7)
+        _, _, t2 = make_split_dataloaders(dataset, batch_size=len(dataset), seed=7)
+        for b1, b2 in zip(t1, t2):
+            assert torch.equal(b1["label"], b2["label"])
+
+    def test_pure_two_way_split_via_make_dataloaders_drops_no_example(self, dataset):
+        # Regression test: make_dataloaders() wraps make_split_dataloaders()
+        # with val_ratio = 1 - train_ratio, i.e. a test_ratio of exactly 0.
+        # Flooring n_train and n_val independently (instead of flooring
+        # n_train and n_test, then letting n_val absorb the remainder) used
+        # to leak one example into a phantom, discarded test split whenever
+        # len(dataset) * train_ratio wasn't an exact integer.
+        train_dl, val_dl = make_dataloaders(dataset, batch_size=2, train_ratio=0.8)
+        n_train = sum(b["input_ids"].shape[0] for b in train_dl)
+        n_val = sum(b["input_ids"].shape[0] for b in val_dl)
+        assert n_train + n_val == len(dataset)
