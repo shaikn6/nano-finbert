@@ -13,7 +13,9 @@ from __future__ import annotations
 import torch
 
 
-def confusion_matrix(predictions: torch.Tensor, labels: torch.Tensor, num_classes: int) -> torch.Tensor:
+def confusion_matrix(
+    predictions: torch.Tensor, labels: torch.Tensor, num_classes: int
+) -> torch.Tensor:
     """
     Build a (num_classes, num_classes) confusion matrix, rows=true, cols=predicted.
 
