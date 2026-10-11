@@ -94,7 +94,7 @@ inspectable and needs no labelled data for entities/sectors/events.
 | Total parameters | 1,882,243 (embedding 1,057,024 · encoder 791,552 · norm 256 · pooler 16,512 · sentiment head 16,899) |
 | Training device | CPU (no GPU needed) |
 
-**Tech stack:** PyTorch 2.x (model + training), a hand-written BPE tokenizer (no `tokenizers`/`transformers` dependency), FastAPI + Uvicorn (serving), pytest (404 test functions across the suite).
+**Tech stack:** PyTorch 2.x (model + training), a hand-written BPE tokenizer (no `tokenizers`/`transformers` dependency), FastAPI + Uvicorn (serving), pytest (415 test functions across the suite).
 
 ## How it works
 
@@ -194,9 +194,9 @@ python scripts/train.py --epochs 5 --batch-size 32 --checkpoint-dir checkpoints/
 
 ## Training
 
-nano-finbert ships two datasets:
+nano-finbert uses two datasets:
 - `data/samples/financial_phrases.json` — 198 curated phrases, for a fast end-to-end smoke test.
-- `data/financial_phrasebank.json` — the full [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank), 3,279 examples (679 negative / 1,300 neutral / 1,300 positive).
+- `data/financial_phrasebank.json` — the full [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank), 3,279 examples (679 negative / 1,300 neutral / 1,300 positive). Not included in the repo: the PhraseBank license (CC BY-NC-SA 3.0) does not allow redistributing it, so place your own copy at this path, in the same JSON format as the sample file.
 
 The training loop in `src/finbert/train.py` is heavily annotated to explain every decision. Data is split into **train/val/test (70/15/15)**, not just train/val — the val set is used to pick the best checkpoint, and the test set is never touched until that checkpoint is evaluated once at the end, so the reported numbers are an honest generalization estimate rather than a number the model was indirectly selected to maximize.
 
@@ -211,6 +211,8 @@ positive       0.529     0.542     0.535       203
 
 accuracy: 0.552   macro_f1: 0.539
 ```
+
+Only the data split is seeded; weight initialisation is not, so a re-run lands within about a point of these figures (a re-run on 2026-10-11 gave accuracy 0.558, macro-F1 0.547).
 
 Training loss drops to ~0.12 while validation loss climbs to ~1.97 by epoch 15 — the 1.88M-param model overfits the 2,295-example training set well before 15 epochs (best val accuracy, 0.607, is hit mid-run, not at the end). That gap, and the 24-point accuracy/macro-F1 gap to the 33M-param production model below, is the real, honest cost of "from scratch, no pretraining" at this parameter count — not a bug to patch, but exactly the kind of result this repo exists to make visible and inspectable.
 
@@ -241,7 +243,7 @@ nano-finbert/
 │   ├── signals.py      # FinancialSignal extractor
 │   └── api/server.py   # FastAPI inference endpoint
 ├── data/samples/       # 198 labeled financial phrases
-├── tests/              # pytest suite (404 test functions: model, tokenizer, signals, API)
+├── tests/              # pytest suite (415 test functions: model, tokenizer, signals, API)
 └── scripts/            # train.py + infer.py CLIs
 ```
 
