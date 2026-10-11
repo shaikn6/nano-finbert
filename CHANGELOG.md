@@ -5,7 +5,7 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
-- Distillation experiment: `scripts/distill_label.py`, `scripts/round2_teacher.py` and `scripts/train_distill.py`, with measured results in the README (the same 1.88M-parameter model reaches 0.633 accuracy with teacher-labeled data, against 0.552 for the original recipe)
+- Distillation experiment: `scripts/distill_label.py`, `scripts/round2_teacher.py`, `scripts/pretrain_mlm.py` and `scripts/train_distill.py`, with measured results in the README (the same 1.88M-parameter model reaches 0.633 accuracy with teacher-labeled data and 0.654 with masked-token pretraining as well, against 0.552 for the original recipe)
 
 ### Changed
 - README no longer presents the production model's 95.29% and this model's 55.2% as scores on the same test set; the production model scores 74.3% on this repo's test split

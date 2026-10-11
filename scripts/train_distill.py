@@ -108,6 +108,8 @@ def main() -> None:
         default=None,
         help="cache built tokenizers here, keyed by hash of training texts",
     )
+    ap.add_argument("--tok-path", default=None, help="load this exact tokenizer file")
+    ap.add_argument("--init-ckpt", default=None, help="pretrained encoder checkpoint")
     args = ap.parse_args()
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -127,7 +129,10 @@ def main() -> None:
         Path(args.tok_cache_dir).mkdir(parents=True, exist_ok=True)
         key = hashlib.sha1("\n".join(train_texts).encode("utf-8")).hexdigest()[:16]
         cache = Path(args.tok_cache_dir) / f"tok_{key}.json"
-    if cache is not None and cache.exists():
+    if args.tok_path:
+        tokenizer = FinancialTokenizer.load(args.tok_path)
+        print(f"tokenizer loaded from {args.tok_path}: {tokenizer}")
+    elif cache is not None and cache.exists():
         tokenizer = FinancialTokenizer.load(str(cache))
         print(f"tokenizer loaded from cache {cache}: {tokenizer} ({time.time() - t0:.0f}s)")
     else:
@@ -162,6 +167,18 @@ def main() -> None:
     torch.manual_seed(args.seed)
     model = NanoFinBERT(vocab_size=8000, hidden_dim=128, num_layers=4, num_heads=4, max_seq_len=256)
     print(f"Parameters: {model.count_parameters():,}")
+    if args.init_ckpt:
+        ck = torch.load(args.init_ckpt, map_location="cpu", weights_only=True)
+        res = model.load_state_dict(ck["state_dict"], strict=False)
+        assert not res.unexpected_keys, res.unexpected_keys
+        n_loaded = len(ck["state_dict"])
+        fresh = res.missing_keys
+        print(
+            f"PRETRAINED: loaded {n_loaded} tensors of {len(model.state_dict())}; fresh init: {len(fresh)}"
+        )
+        print("fresh tensors:", fresh)
+        w = model.state_dict()
+        assert all(torch.equal(w[k], v) for k, v in ck["state_dict"].items())
 
     config = TrainConfig(
         lr=args.lr,

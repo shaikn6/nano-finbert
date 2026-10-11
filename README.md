@@ -51,7 +51,7 @@ result.*
 > |---|---|---|
 > | Goal | *Learn* the internals | *Use* it for real accuracy |
 > | Build | From scratch, 1.88M params, annotated | MiniLM (33M) fine-tuned |
-> | Accuracy | **55.2% held-out test, macro-F1 0.539** (full 3,279-phrase Financial PhraseBank, 15 epochs); **63.3%** when also trained on teacher-labeled news ([distillation](#distillation-experiment)) | **95.29%** on its own test split (the all-annotators-agree subset); **74.3%** on this repo's harder test split |
+> | Accuracy | **55.2% held-out test, macro-F1 0.539** (full 3,279-phrase Financial PhraseBank, 15 epochs); **65.4%** with masked-token pretraining plus teacher-labeled news ([distillation](#distillation-experiment)) | **95.29%** on its own test split (the all-annotators-agree subset); **74.3%** on this repo's harder test split |
 > | Where | Here, on GitHub | **[🤗 9mark9/finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** |
 >
 > The two headline numbers come from different test sets, so they are not directly comparable. The production model's **95.29% / macro-F1 0.937** are the numbers on its own Hugging Face card, from a fine-tuned 33M-param MiniLM evaluated on the `Sentences_AllAgree` subset of [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank), where every annotator agreed. This repo's test split also contains the sentences annotators disagreed on; on that split the same production model scores **74.3% / macro-F1 0.746** (and some of those sentences may have been in its training data). This repo's **55.2% / macro-F1 0.539** are from training the from-scratch 1.88M-param model in this repo end-to-end (`python scripts/train.py --data-path data/financial_phrasebank.json --epochs 15`) — see [Training](#training) for the full per-class breakdown and what the gap to the production model tells you about model capacity. Use the linked production model when you need real-world accuracy; use this repo to actually understand how a transformer sentiment classifier is built.
@@ -222,7 +222,7 @@ Training loss drops to ~0.12 while validation loss climbs to ~1.97 by epoch 15 �
 
 ### Distillation experiment
 
-Can the same 1.88M-parameter model do better if a stronger model labels more text for it? `scripts/distill_label.py`, `scripts/round2_teacher.py` and `scripts/train_distill.py` test that. A teacher labels 40,000 unlabeled news sentences ([NOSIBLE/financial-sentiment](https://huggingface.co/datasets/NOSIBLE/financial-sentiment), text only, its labels ignored); confident, class-balanced predictions are added to the 2,295 original training sentences. The validation and test splits are unchanged, no candidate sentence matched a PhraseBank sentence, and the tokenizer is built on training text only.
+Can the same 1.88M-parameter model do better if a stronger model labels more text for it? `scripts/distill_label.py`, `scripts/round2_teacher.py`, `scripts/pretrain_mlm.py` and `scripts/train_distill.py` test that. A teacher labels 40,000 unlabeled news sentences ([NOSIBLE/financial-sentiment](https://huggingface.co/datasets/NOSIBLE/financial-sentiment), text only, its labels ignored); confident, class-balanced predictions are added to the 2,295 original training sentences. The validation and test splits are unchanged, no candidate sentence matched a PhraseBank sentence, and the tokenizer is built on training text only.
 
 All rows are on the same 491-sentence held-out test split, with the checkpoint chosen on validation and the test set scored once per run:
 
@@ -233,6 +233,7 @@ All rows are on the same 491-sentence held-out test split, with the checkpoint c
 | + 17,747 sentences labeled by the production model | 0.623 | 0.617 |
 | + 15,000 sentences labeled by a teacher fine-tuned on this training split, mean of 3 seeds | **0.633** (0.627 to 0.642) | 0.634 |
 | Same, trained on the teacher's probabilities instead of hard labels | 0.635 | 0.638 |
+| Same (hard labels), encoder first pretrained with masked-token prediction on 40,295 unlabeled sentences, mean of 3 seeds | **0.654** (0.646 to 0.668) | 0.654 |
 | TF-IDF (1-2 grams) + logistic regression, for reference | 0.633 | 0.619 |
 | Teacher: production model as published | 0.743 | 0.746 |
 | Teacher: fine-tuned on this training split | 0.825 | 0.830 |
@@ -241,15 +242,19 @@ What it shows:
 
 - Teacher-labeled data is worth about 8 points over the original recipe and about 13 over a like-for-like control.
 - Improving the teacher from 0.743 to 0.825 moved the student by about one point, and soft labels by less than the spread between seeds. The student, not the teacher, is now the limit.
-- At this size the from-scratch transformer matches a bag-of-words baseline and does not beat it.
+- Masked-token pretraining adds about 2 points (0.633 to 0.654). All three pretrained seeds score above all three non-pretrained ones, but the difference is about the size of the spread between seeds, so treat it as a small gain, not a settled one. Pretraining without the teacher-labeled data did not help (0.515 against the 0.507 control).
+- Without pretraining the from-scratch transformer matches a bag-of-words baseline; with it, it is about 2 points ahead.
 
-Limits: one data split; three seeds for one configuration and one seed for the rest; with 491 test sentences a single accuracy figure has a standard error of about 2 points. The teachers were trained on Financial PhraseBank, so their own test scores are not clean held-out numbers; the student never sees validation or test sentences. The control scores below the original recipe, which uses different settings (batch size 16, 256-token padding, tokenizer built on all text); that difference was not investigated.
+Limits: one data split; three seeds for two configurations and one seed for the rest; one pretraining run, stopped at 12 epochs while its loss was still falling; with 491 test sentences a single accuracy figure has a standard error of about 2 points. The teachers were trained on Financial PhraseBank, so their own test scores are not clean held-out numbers; the student never sees validation or test sentences. The control scores below the original recipe, which uses different settings (batch size 16, 256-token padding, tokenizer built on all text); that difference was not investigated.
 
 ```bash
 PYTHONPATH=src python scripts/distill_label.py --out-dir work/        # production-model labels
 PYTHONPATH=src python scripts/round2_teacher.py --out-dir work/r2     # fine-tune the teacher, relabel
 PYTHONPATH=src python scripts/train_distill.py --epochs 10 --seed 0 \
     --pseudo-path work/r2/pseudo_labeled_r2.json --out-dir work/r2/run --tok-cache-dir work/r2/tokcache
+
+# optional: pretrain the encoder first, then pass it to train_distill.py with --init-ckpt
+PYTHONPATH=src python scripts/pretrain_mlm.py --out-dir work/r3 --tok-path work/r2/tokcache/<tokenizer>.json
 ```
 
 These scripts need `transformers`, `datasets` and `scikit-learn`, which the core package does not depend on.
