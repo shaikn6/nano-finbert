@@ -9,6 +9,7 @@ Usage: PYTHONPATH=src python scripts/round2_teacher.py --out-dir <work>/round2
 
 from __future__ import annotations
 
+from pins import revision
 import argparse
 import json
 import random
@@ -51,8 +52,8 @@ def main() -> None:
     device = "mps" if torch.backends.mps.is_available() else "cpu"
     torch.manual_seed(args.seed)
     random.seed(args.seed)
-    tok = AutoTokenizer.from_pretrained(TEACHER)
-    model = AutoModelForSequenceClassification.from_pretrained(TEACHER).to(device)
+    tok = AutoTokenizer.from_pretrained(TEACHER, revision=revision(TEACHER))
+    model = AutoModelForSequenceClassification.from_pretrained(TEACHER, revision=revision(TEACHER)).to(device)
     print("device:", device, "id2label:", model.config.id2label)
 
     def texts_labels(idx):
@@ -125,7 +126,7 @@ def main() -> None:
 
     # ---- B: re-collect candidates (same logic as distill_label.py) ----
     pb_norm = {norm(s["text"]) for s in samples}
-    ds = load_dataset("NOSIBLE/financial-sentiment", split="train", streaming=True)
+    ds = load_dataset("NOSIBLE/financial-sentiment", revision=revision("NOSIBLE/financial-sentiment"), split="train", streaming=True)
     cands, seen, n_stream, n_leak, n_dup = [], set(), 0, 0, 0
     for row in ds:
         n_stream += 1
