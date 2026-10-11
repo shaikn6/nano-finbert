@@ -127,7 +127,9 @@ def main() -> None:
     cache = None
     if args.tok_cache_dir:
         Path(args.tok_cache_dir).mkdir(parents=True, exist_ok=True)
-        key = hashlib.sha1("\n".join(train_texts).encode("utf-8")).hexdigest()[:16]
+        key = hashlib.sha1(
+            "\n".join(train_texts).encode("utf-8"), usedforsecurity=False
+        ).hexdigest()[:16]
         cache = Path(args.tok_cache_dir) / f"tok_{key}.json"
     if args.tok_path:
         tokenizer = FinancialTokenizer.load(args.tok_path)
