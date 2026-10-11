@@ -11,6 +11,7 @@ Usage:
 
 from __future__ import annotations
 
+from pins import revision
 import argparse
 import json
 import random
@@ -88,8 +89,8 @@ def main() -> None:
     _, _, test_idx = fixed_split(len(samples))
 
     device = "mps" if torch.backends.mps.is_available() else "cpu"
-    tok = AutoTokenizer.from_pretrained(TEACHER)
-    model = AutoModelForSequenceClassification.from_pretrained(TEACHER).to(device).eval()
+    tok = AutoTokenizer.from_pretrained(TEACHER, revision=revision(TEACHER))
+    model = AutoModelForSequenceClassification.from_pretrained(TEACHER, revision=revision(TEACHER)).to(device).eval()
     print("teacher id2label:", model.config.id2label, "device:", device)
 
     # --- 1. teacher on the fixed test split ---
@@ -103,7 +104,7 @@ def main() -> None:
 
     # --- 2. stream + cut + leak guard ---
     t0 = time.time()
-    ds = load_dataset("NOSIBLE/financial-sentiment", split="train", streaming=True)
+    ds = load_dataset("NOSIBLE/financial-sentiment", revision=revision("NOSIBLE/financial-sentiment"), split="train", streaming=True)
     cands, seen, n_stream, n_leak, n_dup = [], set(), 0, 0, 0
     for row in ds:
         n_stream += 1

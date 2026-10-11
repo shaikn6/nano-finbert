@@ -11,6 +11,7 @@ Usage: PYTHONPATH=src python scripts/pretrain_mlm.py --out-dir <work>/round3 --t
 
 from __future__ import annotations
 
+from pins import revision
 import argparse
 import json
 import math
@@ -51,7 +52,7 @@ class MLMModel(nn.Module):
 def collect(n_candidates, pb_norm):
     from datasets import load_dataset
 
-    ds = load_dataset("NOSIBLE/financial-sentiment", split="train", streaming=True)
+    ds = load_dataset("NOSIBLE/financial-sentiment", revision=revision("NOSIBLE/financial-sentiment"), split="train", streaming=True)
     cands, seen, n_stream, n_leak, n_dup = [], set(), 0, 0, 0
     for row in ds:
         n_stream += 1
