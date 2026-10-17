@@ -534,3 +534,30 @@ class TestSignalExtractorExtended:
         extractor = SignalExtractor(tokenizer_path=tok_path)
         signal = extractor.extract("Bitcoin fell on regulatory concerns")
         assert isinstance(signal, FinancialSignal)
+
+
+# ---------------------------------------------------------------------------
+# Untrained-model flag
+# ---------------------------------------------------------------------------
+
+
+class TestTrainedFlag:
+    def test_no_checkpoint_reports_untrained_and_warns(self, caplog):
+        with caplog.at_level("WARNING", logger="finbert.signals"):
+            extractor = SignalExtractor()
+        assert extractor.trained is False
+        assert "No trained checkpoint loaded" in caplog.text
+
+    def test_checkpoint_reports_trained_without_warning(self, tmp_path, caplog):
+        from finbert.model import NanoFinBERT
+
+        model = NanoFinBERT(
+            vocab_size=8000, hidden_dim=32, num_layers=1, num_heads=2, max_seq_len=256
+        )
+        ckpt_path = str(tmp_path / "test.pt")
+        torch.save({"config": model.config, "model_state_dict": model.state_dict()}, ckpt_path)
+
+        with caplog.at_level("WARNING", logger="finbert.signals"):
+            extractor = SignalExtractor(model_path=ckpt_path)
+        assert extractor.trained is True
+        assert "No trained checkpoint loaded" not in caplog.text

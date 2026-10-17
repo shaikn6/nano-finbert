@@ -24,7 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from finbert.signals import SignalExtractor
+from finbert.signals import UNTRAINED_WARNING, SignalExtractor
 
 
 def parse_args() -> argparse.Namespace:
@@ -76,6 +76,8 @@ def main() -> None:
     )
     params = extractor.model.count_parameters()
     print(f"Model ready ({params:,} parameters)", file=sys.stderr)
+    if not extractor.trained:
+        print(f"WARNING: {UNTRAINED_WARNING}", file=sys.stderr)
 
     if args.text:
         signal = extractor.extract(args.text)

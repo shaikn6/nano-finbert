@@ -272,3 +272,39 @@ class TestHealthModelLoaded:
             assert data["model_loaded"] is False
         finally:
             server_module._extractor = original
+
+
+# ---------------------------------------------------------------------------
+# Untrained-model flag
+# ---------------------------------------------------------------------------
+
+
+class TestUntrainedFlag:
+    """The test app runs on random weights, so every response must say so."""
+
+    def test_extract_carries_untrained_flag(self, client):
+        data = client.post("/extract", json={"text": "Gold rose on safe-haven demand"}).json()
+        assert data["trained"] is False
+        assert "No trained checkpoint" in data["warning"]
+
+    def test_batch_carries_untrained_flag(self, client):
+        data = client.post("/extract/batch", json={"texts": ["Gold rose", "Oil fell"]}).json()
+        assert data["trained"] is False
+        assert data["warning"]
+        assert all(s["trained"] is False for s in data["signals"])
+
+    def test_health_and_model_info_carry_untrained_flag(self, client):
+        health = client.get("/health").json()
+        assert health["model_loaded"] is True  # service is up
+        assert health["trained"] is False
+        assert health["warning"]
+        assert client.get("/model/info").json()["trained"] is False
+
+    def test_trained_extractor_has_no_warning(self, client, monkeypatch):
+        from finbert import api
+
+        monkeypatch.setattr(api.server._extractor, "trained", True)
+        data = client.post("/extract", json={"text": "Gold rose on safe-haven demand"}).json()
+        assert data["trained"] is True
+        assert data["warning"] is None
+        assert client.get("/health").json()["warning"] is None
