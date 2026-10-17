@@ -24,7 +24,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from finbert.signals import FinancialSignal, SignalExtractor
+from finbert.signals import UNTRAINED_WARNING, FinancialSignal, SignalExtractor
+
+
+def _warning(trained: bool) -> str | None:
+    return None if trained else UNTRAINED_WARNING
+
 
 # ---------------------------------------------------------------------------
 # Request / Response schemas
@@ -59,22 +64,37 @@ class SignalResponse(BaseModel):
     event_type: str
     impact_score: float
     signal_direction: str
+    trained: bool = Field(
+        True,
+        description="False when the model runs on random weights (no checkpoint loaded).",
+    )
+    warning: str | None = Field(
+        None,
+        description="Set when trained is false: sentiment fields are not meaningful.",
+    )
 
     @classmethod
-    def from_signal(cls, signal: FinancialSignal) -> SignalResponse:
-        return cls(**signal.to_dict())
+    def from_signal(cls, signal: FinancialSignal, trained: bool = True) -> SignalResponse:
+        return cls(**signal.to_dict(), trained=trained, warning=_warning(trained))
 
 
 class BatchSignalResponse(BaseModel):
     signals: list[SignalResponse]
     count: int
     processing_time_ms: float
+    trained: bool = True
+    warning: str | None = None
 
 
 class HealthResponse(BaseModel):
     status: str
     version: str
     model_loaded: bool
+    trained: bool = Field(
+        True,
+        description="False when running on random weights; model_loaded only means the service is up.",
+    )
+    warning: str | None = None
 
 
 class ModelInfoResponse(BaseModel):
@@ -86,6 +106,8 @@ class ModelInfoResponse(BaseModel):
     max_seq_len: int
     total_parameters: int
     device: str
+    trained: bool = True
+    warning: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -112,8 +134,10 @@ async def lifespan(app: FastAPI):
     print(
         f"[nano-finbert] Model loaded | "
         f"params={_extractor.model.count_parameters():,} | "
-        f"device={device}"
+        f"device={device} | trained={_extractor.trained}"
     )
+    if not _extractor.trained:
+        print(f"[nano-finbert] WARNING: {UNTRAINED_WARNING}")
     yield
     # Clean up on shutdown (nothing to do for CPU inference)
     _extractor = None
@@ -159,6 +183,8 @@ async def health() -> HealthResponse:
         status="ok",
         version="0.1.0",
         model_loaded=_extractor is not None,
+        trained=_extractor is None or _extractor.trained,
+        warning=_warning(_extractor is None or _extractor.trained),
     )
 
 
@@ -176,6 +202,8 @@ async def model_info() -> ModelInfoResponse:
         max_seq_len=cfg["max_seq_len"],
         total_parameters=extractor.model.count_parameters(),
         device=extractor.device,
+        trained=extractor.trained,
+        warning=_warning(extractor.trained),
     )
 
 
@@ -192,7 +220,7 @@ async def extract_signal(request: ExtractRequest) -> SignalResponse:
         signal = extractor.extract(request.text)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Extraction failed: {exc}") from exc
-    return SignalResponse.from_signal(signal)
+    return SignalResponse.from_signal(signal, trained=extractor.trained)
 
 
 @app.post("/extract/batch", response_model=BatchSignalResponse, tags=["inference"])
@@ -217,9 +245,11 @@ async def extract_batch(request: BatchExtractRequest) -> BatchSignalResponse:
         raise HTTPException(status_code=500, detail=f"Batch extraction failed: {exc}") from exc
 
     return BatchSignalResponse(
-        signals=[SignalResponse.from_signal(s) for s in signals],
+        signals=[SignalResponse.from_signal(s, trained=extractor.trained) for s in signals],
         count=len(signals),
         processing_time_ms=round(elapsed_ms, 2),
+        trained=extractor.trained,
+        warning=_warning(extractor.trained),
     )
 
 

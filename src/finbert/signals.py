@@ -18,6 +18,7 @@ making the extractor immediately useful for prototyping and testing.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import asdict, dataclass, field
 
@@ -27,6 +28,14 @@ import torch.nn.functional as F
 from finbert.dataset import ID_TO_SENTIMENT
 from finbert.model import NanoFinBERT
 from finbert.tokenizer import FinancialTokenizer, build_default_tokenizer
+
+logger = logging.getLogger(__name__)
+
+UNTRAINED_WARNING = (
+    "No trained checkpoint loaded: sentiment, confidence, impact_score and "
+    "signal_direction come from random weights and are meaningless. "
+    "Set MODEL_PATH (or pass model_path) to a trained checkpoint."
+)
 
 # ---------------------------------------------------------------------------
 # Sector keyword mapping
@@ -552,11 +561,15 @@ class SignalExtractor:
             self.tokenizer = build_default_tokenizer()
 
         # Build model
+        # `trained` is False for random weights so callers (API, CLI) can warn
+        # instead of silently returning meaningless sentiment.
+        self.trained = bool(model_path)
         if model_path:
             self.model = NanoFinBERT.from_checkpoint(model_path)
         else:
             # Random weights — valid for structural testing, not for real inference
             self.model = NanoFinBERT()
+            logger.warning(UNTRAINED_WARNING)
 
         self.model.to(device)
         self.model.eval()
