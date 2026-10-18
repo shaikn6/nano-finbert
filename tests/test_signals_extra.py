@@ -561,3 +561,16 @@ class TestTrainedFlag:
             extractor = SignalExtractor(model_path=ckpt_path)
         assert extractor.trained is True
         assert "No trained checkpoint loaded" not in caplog.text
+
+
+class TestShippedCheckpoint:
+    def test_pretrained_loads_trained_model(self):
+        extractor = SignalExtractor.pretrained()
+        assert extractor.trained is True
+
+    def test_pretrained_predicts_clear_examples(self):
+        extractor = SignalExtractor.pretrained()
+        up = extractor.extract("$AAPL beats earnings estimates, raises full-year guidance")
+        down = extractor.extract("$XYZ plunges after missing revenue estimates and cutting outlook")
+        assert up.sentiment == "positive"
+        assert down.sentiment == "negative"

@@ -280,7 +280,22 @@ class TestHealthModelLoaded:
 
 
 class TestUntrainedFlag:
-    """The test app runs on random weights, so every response must say so."""
+    """With no checkpoint available, every response must say the weights are random."""
+
+    @pytest.fixture(scope="class")
+    def client(self):
+        from finbert import api, signals
+
+        # Point the shipped-checkpoint default at nothing so the app starts untrained.
+        # Lifespan shutdown clears the module-level extractor shared with the other
+        # tests' client, so put it back afterwards.
+        previous = api.server._extractor
+        mp = pytest.MonkeyPatch()
+        mp.setattr(signals, "DEFAULT_MODEL_PATH", signals.WEIGHTS_DIR / "does-not-exist.pt")
+        with TestClient(app) as c:
+            yield c
+        mp.undo()
+        api.server._extractor = previous
 
     def test_extract_carries_untrained_flag(self, client):
         data = client.post("/extract", json={"text": "Gold rose on safe-haven demand"}).json()
@@ -308,3 +323,13 @@ class TestUntrainedFlag:
         assert data["trained"] is True
         assert data["warning"] is None
         assert client.get("/health").json()["warning"] is None
+
+
+class TestShippedCheckpoint:
+    """With no MODEL_PATH the API serves the checkpoint that ships with the package."""
+
+    def test_default_app_is_trained(self, client):
+        data = client.get("/health").json()
+        assert data["model_loaded"] is True
+        assert data["trained"] is True
+        assert data["warning"] is None

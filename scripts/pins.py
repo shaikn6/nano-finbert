@@ -10,6 +10,8 @@ To move a pin, change the hash here and rerun whatever depends on it.
 REVISIONS = {
     "9mark9/finbert-minilm-sentiment": "fdbfec0cd09610bd5af26da8998507fe7838e838",
     "NOSIBLE/financial-sentiment": "9bd8206a729ccd64fa259f0368f0b4025bb472af",
+    # MIT-licensed; pinned 2026-10-17 for scripts/train_tfns.py
+    "zeroshot/twitter-financial-news-sentiment": "ccbe24de388e287beb92dd393a335c376b350ac3",
 }
 
 

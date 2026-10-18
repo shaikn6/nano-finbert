@@ -21,6 +21,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 
 import torch
 import torch.nn.functional as F
@@ -36,6 +37,13 @@ UNTRAINED_WARNING = (
     "signal_direction come from random weights and are meaningless. "
     "Set MODEL_PATH (or pass model_path) to a trained checkpoint."
 )
+
+# Checkpoint and matching tokenizer shipped with the package (see scripts/train_tfns.py).
+# The tokenizer must travel with the weights: a different vocabulary maps tokens to
+# different embedding rows and the model's output is meaningless.
+WEIGHTS_DIR = Path(__file__).parent / "weights"
+DEFAULT_MODEL_PATH = WEIGHTS_DIR / "nano_finbert_tfns.pt"
+DEFAULT_TOKENIZER_PATH = WEIGHTS_DIR / "tokenizer.json"
 
 # ---------------------------------------------------------------------------
 # Sector keyword mapping
@@ -573,6 +581,15 @@ class SignalExtractor:
 
         self.model.to(device)
         self.model.eval()
+
+    @classmethod
+    def pretrained(cls, device: str = "cpu") -> SignalExtractor:
+        """Load the checkpoint and tokenizer that ship with the package."""
+        return cls(
+            model_path=str(DEFAULT_MODEL_PATH),
+            tokenizer_path=str(DEFAULT_TOKENIZER_PATH),
+            device=device,
+        )
 
     def extract(self, text: str) -> FinancialSignal:
         """
