@@ -2,7 +2,7 @@
 CLI inference script for NanoFinBERT.
 
 Usage:
-    # Single text (random-weight model, for testing)
+    # Single text (shipped checkpoint when present)
     python scripts/infer.py --text "SpaceX IPO filing sent aerospace stocks soaring"
 
     # With trained checkpoint
@@ -24,7 +24,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from finbert.signals import UNTRAINED_WARNING, SignalExtractor
+from finbert.signals import (
+    DEFAULT_MODEL_PATH,
+    DEFAULT_TOKENIZER_PATH,
+    UNTRAINED_WARNING,
+    SignalExtractor,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -69,9 +74,14 @@ def main() -> None:
         sys.exit(1)
 
     print("Loading model...", file=sys.stderr)
+    model_path, tokenizer_path = args.model, args.tokenizer
+    if not model_path and DEFAULT_MODEL_PATH.exists():
+        # No --model: use the checkpoint shipped with the package and its tokenizer.
+        model_path = str(DEFAULT_MODEL_PATH)
+        tokenizer_path = tokenizer_path or str(DEFAULT_TOKENIZER_PATH)
     extractor = SignalExtractor(
-        model_path=args.model,
-        tokenizer_path=args.tokenizer,
+        model_path=model_path,
+        tokenizer_path=tokenizer_path,
         device=args.device,
     )
     params = extractor.model.count_parameters()

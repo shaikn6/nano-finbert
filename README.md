@@ -3,7 +3,7 @@
 ![CI](https://github.com/shaikn6/nano-finbert/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![PyTorch](https://img.shields.io/badge/pytorch-2.0%2B-ee4c2c)
-![Tests](https://img.shields.io/badge/tests-415%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-424%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![Live demo](https://img.shields.io/badge/🤗_Live_demo-Spaces-FFD21E)](https://huggingface.co/spaces/9mark9/nano-finbert-demo)
 
@@ -38,8 +38,9 @@ print(signal.to_dict())
 }
 ```
 
-*Sample output above is illustrative. `SignalExtractor()` with no checkpoint uses randomly
-initialized weights, so `sentiment`, `confidence`, `impact_score`, and `signal_direction`
+*Sample output above is illustrative. `SignalExtractor.pretrained()` loads the checkpoint that
+ships with this repo (see [Shipped checkpoint](#shipped-checkpoint)); `SignalExtractor()` with
+no checkpoint uses randomly initialized weights, so `sentiment`, `confidence`, `impact_score`, and `signal_direction`
 vary between runs. `entities`, `sectors`, and `event_type` come from the deterministic rule
 layer in `signals.py` and stay stable regardless of model weights. See
 [Training](#training) to fit real weights, or use the production model below for a trained
@@ -51,7 +52,7 @@ result.*
 > |---|---|---|
 > | Goal | *Learn* the internals | *Use* it for real accuracy |
 > | Build | From scratch, 1.88M params, annotated | MiniLM (33M) fine-tuned |
-> | Accuracy | **55.2% held-out test, macro-F1 0.539** (full 3,279-phrase Financial PhraseBank, 15 epochs); **65.4%** with masked-token pretraining plus teacher-labeled news ([distillation](#distillation-experiment)) | **95.29%** on its own test split (the all-annotators-agree subset); **74.3%** on this repo's harder test split |
+> | Accuracy | **Shipped checkpoint (MIT-licensed tweet data): 76.0% held-out test, macro-F1 0.680** ([details](#shipped-checkpoint)). **55.2% held-out test, macro-F1 0.539** (full 3,279-phrase Financial PhraseBank, 15 epochs); **65.4%** with masked-token pretraining plus teacher-labeled news ([distillation](#distillation-experiment)) | **95.29%** on its own test split (the all-annotators-agree subset); **74.3%** on this repo's harder test split |
 > | Where | Here, on GitHub | **[🤗 9mark9/finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** |
 >
 > The two headline numbers come from different test sets, so they are not directly comparable. The production model's **95.29% / macro-F1 0.937** are the numbers on its own Hugging Face card, from a fine-tuned 33M-param MiniLM evaluated on the `Sentences_AllAgree` subset of [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank), where every annotator agreed. This repo's test split also contains the sentences annotators disagreed on; on that split the same production model scores **74.3% / macro-F1 0.746** (and some of those sentences may have been in its training data). This repo's **55.2% / macro-F1 0.539** are from training the from-scratch 1.88M-param model in this repo end-to-end (`python scripts/train.py --data-path data/financial_phrasebank.json --epochs 15`) — see [Training](#training) for the full per-class breakdown and what the gap to the production model tells you about model capacity. Use the linked production model when you need real-world accuracy; use this repo to actually understand how a transformer sentiment classifier is built.
@@ -94,7 +95,7 @@ inspectable and needs no labelled data for entities/sectors/events.
 | Total parameters | 1,882,243 (embedding 1,057,024 · encoder 791,552 · norm 256 · pooler 16,512 · sentiment head 16,899) |
 | Training device | CPU (no GPU needed) |
 
-**Tech stack:** PyTorch 2.x (model + training), a hand-written BPE tokenizer (no `tokenizers`/`transformers` dependency), FastAPI + Uvicorn (serving), pytest (415 test functions across the suite).
+**Tech stack:** PyTorch 2.x (model + training), a hand-written BPE tokenizer (no `tokenizers`/`transformers` dependency), FastAPI + Uvicorn (serving), pytest (424 test functions across the suite).
 
 ## How it works
 
@@ -138,7 +139,8 @@ export PYTHONPATH=src
 ```python
 from finbert.signals import SignalExtractor
 
-extractor = SignalExtractor()  # no checkpoint passed -> random weights (see note below)
+extractor = SignalExtractor.pretrained()  # the checkpoint shipped in this repo
+# SignalExtractor() with no arguments uses random weights (structural testing only)
 
 # Single signal
 signal = extractor.extract("Bitcoin dropped below $60,000 as SEC regulatory pressure mounted")
@@ -156,7 +158,7 @@ for s in signals:
     print(f"[{s.signal_direction:7s}] [{s.event_type:15s}] {s.text[:60]}")
 ```
 
-With no checkpoint loaded, `SentimentHead` uses randomly initialized weights, so
+With no checkpoint loaded (plain `SignalExtractor()`), `SentimentHead` uses randomly initialized weights, so
 `sentiment`, `confidence`, `impact_score`, and `signal_direction` are meaningless and will
 come out differently every run — do not treat any specific values you see here as real
 predictions. `entities`, `sectors`, and `event_type` are computed by the deterministic rule
@@ -220,6 +222,36 @@ Training loss drops to ~0.12 while validation loss climbs to ~1.97 by epoch 15 �
 
 **Want real-world accuracy?** Use the fine-tuned **[finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** variant — MiniLM (33M) fine-tuned on the same Financial PhraseBank, reaching **95.29% accuracy / macro-F1 0.937** on its own held-out test split.
 
+### Shipped checkpoint
+
+`src/finbert/weights/` holds a trained checkpoint (`nano_finbert_tfns.pt`, 7.6 MB), the tokenizer it was trained with (`tokenizer.json`) and the full run record (`metrics.json`). `SignalExtractor.pretrained()` loads them, and the API and `scripts/infer.py` use them when no `MODEL_PATH` / `--model` is given, so `/health` reports `"trained": true` out of the box.
+
+It is the same 1.88M-parameter architecture trained from scratch on [zeroshot/twitter-financial-news-sentiment](https://huggingface.co/datasets/zeroshot/twitter-financial-news-sentiment) (**MIT** per the dataset card; pinned to revision `ccbe24d`, not redistributed here; only the weights are committed). Labels: bearish to negative, bullish to positive, neutral to neutral. Links (`t.co`) are stripped and exact-duplicate texts removed.
+
+Reproduce: `PYTHONPATH=src python scripts/train_tfns.py --class-weights --dropout 0.3 --weight-decay 0.05` (needs `huggingface_hub` and `scikit-learn` for the download and the baseline; about 4 minutes on a laptop CPU).
+
+- **Split:** train 8,489 / validation 944 (stratified 90/10 of the dataset's train file, seed 42) / test 2,345 (the dataset's own validation file, minus 32 duplicate or overlapping texts). The BPE tokenizer is built on train text only. The test split was scored once, after the checkpoint was fixed.
+- **Training:** 10 epochs, batch size 32, AdamW at 3e-4, dropout 0.3, weight decay 0.05, inverse-frequency class weights, sequences truncated to 64 tokens. The epoch with the best validation macro-F1 was kept (epoch 8). Hyperparameters were compared on validation only, across four runs: an unweighted run (it never predicted "negative", validation macro-F1 0.461), and three class-weighted variants (dropout 0.1; dropout 0.3 with weight decay 0.05; dropout 0.2 with learning rate 1e-3 for 8 epochs). Validation macro-F1 was 0.700, 0.711 and 0.584 for the three variants; the second is the shipped one.
+
+Held-out test results (2,345 tweets; class balance 1,534 neutral / 473 positive / 338 negative):
+
+```
+class      precision    recall        f1   support
+negative       0.540     0.580     0.559       338
+neutral        0.864     0.834     0.849      1534
+positive       0.614     0.649     0.631       473
+
+accuracy: 0.760   macro_f1: 0.680
+```
+
+| Model (same train and test split) | Accuracy | Macro-F1 |
+|---|---|---|
+| Always predict "neutral" | 0.654 | 0.264 |
+| **nano-finbert, shipped checkpoint** | **0.760** | **0.680** |
+| TF-IDF (1-2 grams) + logistic regression | 0.828 | 0.753 |
+
+The from-scratch transformer is clearly better than the majority class but worse than the bag-of-words baseline on this data: with about 8,500 training tweets and no pretraining, 1.88M parameters overfit (training loss keeps falling while validation loss rises from epoch 4). With 2,345 test tweets a single accuracy figure has a standard error of about 0.9 points, and this is one seed, so differences of a point or two are not meaningful. These are tweets: the model has not been evaluated on news headlines or filings, and the 55.2% PhraseBank figures above are a different, harder test set and are not comparable. It is also trained on 64-token inputs, so very long texts will degrade.
+
 ### Distillation experiment
 
 Can the same 1.88M-parameter model do better if a stronger model labels more text for it? `scripts/distill_label.py`, `scripts/round2_teacher.py`, `scripts/pretrain_mlm.py` and `scripts/train_distill.py` test that. A teacher labels 40,000 unlabeled news sentences ([NOSIBLE/financial-sentiment](https://huggingface.co/datasets/NOSIBLE/financial-sentiment), text only, its labels ignored); confident, class-balanced predictions are added to the 2,295 original training sentences. The validation and test splits are unchanged, no candidate sentence matched a PhraseBank sentence, and the tokenizer is built on training text only.
@@ -281,9 +313,10 @@ nano-finbert/
 │   ├── train.py        # Training loop (educational)
 │   ├── signals.py      # FinancialSignal extractor
 │   └── api/server.py   # FastAPI inference endpoint
+├── src/finbert/weights/ # shipped checkpoint, tokenizer and run metrics
 ├── data/samples/       # 198 labeled financial phrases
-├── tests/              # pytest suite (415 test functions: model, tokenizer, signals, API)
-└── scripts/            # train.py + infer.py CLIs, plus the distillation experiment scripts
+├── tests/              # pytest suite (424 test functions: model, tokenizer, signals, API)
+└── scripts/            # train.py + infer.py CLIs, train_tfns.py (shipped checkpoint), distillation experiment scripts
 ```
 
 ## License

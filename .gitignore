@@ -12,6 +12,7 @@ dist/
 venv/
 env/
 *.pt
+!src/finbert/weights/*.pt
 *.pth
 checkpoints/
 .pytest_cache/

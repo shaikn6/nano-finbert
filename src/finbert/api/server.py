@@ -24,6 +24,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from finbert import signals
 from finbert.signals import UNTRAINED_WARNING, FinancialSignal, SignalExtractor
 
 
@@ -125,6 +126,11 @@ async def lifespan(app: FastAPI):
     model_path = os.getenv("MODEL_PATH")  # optional trained checkpoint
     tokenizer_path = os.getenv("TOKENIZER_PATH")  # optional saved tokenizer
     device = os.getenv("DEVICE", "cpu")
+
+    # No MODEL_PATH: serve the checkpoint shipped with the package, with its own tokenizer.
+    if not model_path and signals.DEFAULT_MODEL_PATH.exists():
+        model_path = str(signals.DEFAULT_MODEL_PATH)
+        tokenizer_path = tokenizer_path or str(signals.DEFAULT_TOKENIZER_PATH)
 
     _extractor = SignalExtractor(
         model_path=model_path or None,

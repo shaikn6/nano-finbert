@@ -5,6 +5,7 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- Shipped trained checkpoint (`src/finbert/weights/`, 7.6 MB) trained by `scripts/train_tfns.py` on the MIT-licensed zeroshot/twitter-financial-news-sentiment dataset: 0.760 test accuracy, 0.680 macro-F1 (TF-IDF + logistic regression: 0.828 / 0.753). `SignalExtractor.pretrained()` loads it; the API and `scripts/infer.py` use it when no model path is given
 - Distillation experiment: `scripts/distill_label.py`, `scripts/round2_teacher.py`, `scripts/pretrain_mlm.py` and `scripts/train_distill.py`, with measured results in the README (the same 1.88M-parameter model reaches 0.633 accuracy with teacher-labeled data and 0.654 with masked-token pretraining as well, against 0.552 for the original recipe)
 
 ### Changed
