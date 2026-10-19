@@ -3,7 +3,7 @@
 ![CI](https://github.com/shaikn6/nano-finbert/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![PyTorch](https://img.shields.io/badge/pytorch-2.0%2B-ee4c2c)
-![Tests](https://img.shields.io/badge/tests-424%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-429%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![Live demo](https://img.shields.io/badge/🤗_Live_demo-Spaces-FFD21E)](https://huggingface.co/spaces/9mark9/nano-finbert-demo)
 
@@ -95,7 +95,7 @@ inspectable and needs no labelled data for entities/sectors/events.
 | Total parameters | 1,882,243 (embedding 1,057,024 · encoder 791,552 · norm 256 · pooler 16,512 · sentiment head 16,899) |
 | Training device | CPU (no GPU needed) |
 
-**Tech stack:** PyTorch 2.x (model + training), a hand-written BPE tokenizer (no `tokenizers`/`transformers` dependency), FastAPI + Uvicorn (serving), pytest (424 test functions across the suite).
+**Tech stack:** PyTorch 2.x (model + training), a hand-written BPE tokenizer (no `tokenizers`/`transformers` dependency), FastAPI + Uvicorn (serving), pytest (429 test functions across the suite).
 
 ## How it works
 
@@ -252,6 +252,27 @@ accuracy: 0.760   macro_f1: 0.680
 
 The from-scratch transformer is clearly better than the majority class but worse than the bag-of-words baseline on this data: with about 8,500 training tweets and no pretraining, 1.88M parameters overfit (training loss keeps falling while validation loss rises from epoch 4). With 2,345 test tweets a single accuracy figure has a standard error of about 0.9 points, and this is one seed, so differences of a point or two are not meaningful. These are tweets: the model has not been evaluated on news headlines or filings, and the 55.2% PhraseBank figures above are a different, harder test set and are not comparable. It is also trained on 64-token inputs, so very long texts will degrade.
 
+### Evaluating the sentiment head
+
+Sentiment is the only learned output, so it is the only one that can be scored against labels. `data/eval/headlines_sentiment.json` holds 90 hand-written headlines (30 positive, 30 negative, 30 neutral) that are in neither the training data nor `data/samples/`, written before the checkpoint was scored on them and not edited afterwards. Run:
+
+```bash
+PYTHONPATH=src python scripts/eval_sentiment.py
+```
+
+```
+90 examples from data/eval/headlines_sentiment.json
+
+class      precision    recall        f1   support
+negative       0.645     0.667     0.656        30
+neutral        0.667     0.800     0.727        30
+positive       0.739     0.567     0.642        30
+
+accuracy: 0.678   macro_f1: 0.675
+```
+
+That is 0.76 accuracy on tweets (above) against 0.68 on news-style headlines, so the tweet-trained checkpoint transfers only partly. With 90 examples one accuracy figure has a standard error of about 5 points, and the labels are one author's judgement of investor sentiment, so read it as a sanity check, not a benchmark. Passing `--data data/samples/financial_phrases.json` scores the 198-phrase smoke-test file instead and gives accuracy 0.510, macro-F1 0.451; that file has only 9 neutral phrases and many labels reflect market direction rather than sentence sentiment (for example "Oil prices surged 4%" is labelled positive), so it is not a fair test of the head.
+
 ### Distillation experiment
 
 Can the same 1.88M-parameter model do better if a stronger model labels more text for it? `scripts/distill_label.py`, `scripts/round2_teacher.py`, `scripts/pretrain_mlm.py` and `scripts/train_distill.py` test that. A teacher labels 40,000 unlabeled news sentences ([NOSIBLE/financial-sentiment](https://huggingface.co/datasets/NOSIBLE/financial-sentiment), text only, its labels ignored); confident, class-balanced predictions are added to the 2,295 original training sentences. The validation and test splits are unchanged, no candidate sentence matched a PhraseBank sentence, and the tokenizer is built on training text only.
@@ -315,8 +336,9 @@ nano-finbert/
 │   └── api/server.py   # FastAPI inference endpoint
 ├── src/finbert/weights/ # shipped checkpoint, tokenizer and run metrics
 ├── data/samples/       # 198 labeled financial phrases
-├── tests/              # pytest suite (424 test functions: model, tokenizer, signals, API)
-└── scripts/            # train.py + infer.py CLIs, train_tfns.py (shipped checkpoint), distillation experiment scripts
+├── data/eval/          # 90 labeled headlines for scripts/eval_sentiment.py
+├── tests/              # pytest suite (429 test functions: model, tokenizer, signals, API)
+└── scripts/            # train.py + infer.py + eval_sentiment.py CLIs, train_tfns.py (shipped checkpoint), distillation experiment scripts
 ```
 
 ## License
