@@ -13,6 +13,9 @@ All notable changes to this project are documented here.
 - `SignalExtractor` now exposes `trained` (False when no checkpoint is loaded) and logs a warning; the API adds `trained` and `warning` to `/extract`, `/extract/batch`, `/health` and `/model/info` so random-weight output is not mistaken for real predictions. `/health` `model_loaded` is unchanged (service is up)
 - README no longer presents the production model's 95.29% and this model's 55.2% as scores on the same test set; the production model scores 74.3% on this repo's test split
 
+### Fixed
+- `SignalExtractor(model_path=...)` with no `tokenizer_path` (API: `MODEL_PATH` without `TOKENIZER_PATH`) silently paired the checkpoint with the default tokenizer and still reported `trained=True`. It now loads the `tokenizer.json` saved next to the checkpoint; if there is none it logs a warning and reports `trained=False`
+
 ## [1.0.0] - 2026-06-16
 
 ### Added

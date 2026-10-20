@@ -561,6 +561,23 @@ class SignalExtractor:
     ) -> None:
         self.device = device
 
+        # A checkpoint's tokenizer is saved next to it as tokenizer.json
+        # (see scripts/train_tfns.py); use it when no tokenizer_path is given.
+        tokenizer_matches_model = bool(tokenizer_path)
+        if model_path and not tokenizer_path:
+            sibling = Path(model_path).parent / "tokenizer.json"
+            if sibling.exists():
+                tokenizer_path = str(sibling)
+                tokenizer_matches_model = True
+            else:
+                logger.warning(
+                    "Checkpoint %s loaded with no tokenizer (no tokenizer_path and no "
+                    "tokenizer.json next to it): the default tokenizer's vocabulary does "
+                    "not match the model, so sentiment is meaningless. Set TOKENIZER_PATH "
+                    "(or pass tokenizer_path) to the tokenizer it was trained with.",
+                    model_path,
+                )
+
         # Build tokenizer
         if tokenizer_path:
             self.tokenizer = FinancialTokenizer.load(tokenizer_path)
@@ -569,9 +586,10 @@ class SignalExtractor:
             self.tokenizer = build_default_tokenizer()
 
         # Build model
-        # `trained` is False for random weights so callers (API, CLI) can warn
-        # instead of silently returning meaningless sentiment.
-        self.trained = bool(model_path)
+        # `trained` is False for random weights, or for a checkpoint with no
+        # matching tokenizer, so callers (API, CLI) can warn instead of silently
+        # returning meaningless sentiment.
+        self.trained = bool(model_path) and tokenizer_matches_model
         if model_path:
             self.model = NanoFinBERT.from_checkpoint(model_path)
         else:
