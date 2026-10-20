@@ -548,19 +548,36 @@ class TestTrainedFlag:
         assert extractor.trained is False
         assert "No trained checkpoint loaded" in caplog.text
 
-    def test_checkpoint_reports_trained_without_warning(self, tmp_path, caplog):
+    @pytest.fixture
+    def ckpt_path(self, tmp_path):
         from finbert.model import NanoFinBERT
 
         model = NanoFinBERT(
             vocab_size=8000, hidden_dim=32, num_layers=1, num_heads=2, max_seq_len=256
         )
-        ckpt_path = str(tmp_path / "test.pt")
-        torch.save({"config": model.config, "model_state_dict": model.state_dict()}, ckpt_path)
+        path = str(tmp_path / "test.pt")
+        torch.save({"config": model.config, "model_state_dict": model.state_dict()}, path)
+        return path
+
+    def test_checkpoint_loads_tokenizer_saved_next_to_it(self, tmp_path, ckpt_path, caplog):
+        from finbert.tokenizer import FinancialTokenizer
+
+        tok = FinancialTokenizer(vocab_size=300)
+        tok.train(["gold silver oil bitcoin dollar earnings ipo merger"])
+        tok.save(str(tmp_path / "tokenizer.json"))
 
         with caplog.at_level("WARNING", logger="finbert.signals"):
             extractor = SignalExtractor(model_path=ckpt_path)
+        assert extractor.tokenizer.token_to_id == tok.token_to_id
         assert extractor.trained is True
-        assert "No trained checkpoint loaded" not in caplog.text
+        assert caplog.text == ""
+
+    def test_checkpoint_without_tokenizer_reports_untrained_and_warns(self, ckpt_path, caplog):
+        # A trained model fed by a different vocabulary gives meaningless output.
+        with caplog.at_level("WARNING", logger="finbert.signals"):
+            extractor = SignalExtractor(model_path=ckpt_path)
+        assert extractor.trained is False
+        assert "no tokenizer" in caplog.text
 
 
 class TestShippedCheckpoint:
