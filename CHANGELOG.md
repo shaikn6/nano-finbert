@@ -12,6 +12,7 @@ All notable changes to this project are documented here.
 ### Changed
 - `SignalExtractor` now exposes `trained` (False when no checkpoint is loaded) and logs a warning; the API adds `trained` and `warning` to `/extract`, `/extract/batch`, `/health` and `/model/info` so random-weight output is not mistaken for real predictions. `/health` `model_loaded` is unchanged (service is up)
 - README no longer presents the production model's 95.29% and this model's 55.2% as scores on the same test set; the production model scores 74.3% on this repo's test split
+- README production-model numbers now match its Hugging Face card: v2 scores 96.47% / macro-F1 0.9532 on the PhraseBank `Sentences_AllAgree` test split (v1: 95.29% / 0.937); the 74.3% figure and the distillation teacher are labelled v1, the revision pinned in `scripts/pins.py`. The SpaceX example output comes from a real run with the shipped checkpoint, and the test count is 430
 
 ### Fixed
 - `SignalExtractor(model_path=...)` with no `tokenizer_path` (API: `MODEL_PATH` without `TOKENIZER_PATH`) silently paired the checkpoint with the default tokenizer and still reported `trained=True`. It now loads the `tokenizer.json` saved next to the checkpoint; if there is none it logs a warning and reports `trained=False`

@@ -3,11 +3,11 @@
 ![CI](https://github.com/shaikn6/nano-finbert/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![PyTorch](https://img.shields.io/badge/pytorch-2.0%2B-ee4c2c)
-![Tests](https://img.shields.io/badge/tests-429%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-430%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![Live demo](https://img.shields.io/badge/🤗_Live_demo-Spaces-FFD21E)](https://huggingface.co/spaces/9mark9/nano-finbert-demo)
 
-> **🤗 Try it live:** [Financial Sentiment demo on Hugging Face Spaces](https://huggingface.co/spaces/9mark9/nano-finbert-demo) — powered by the production [finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment) model (95.29% held-out accuracy).
+> **🤗 Try it live:** [Financial Sentiment demo on Hugging Face Spaces](https://huggingface.co/spaces/9mark9/nano-finbert-demo) — powered by the production [finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment) model (v2: 96.47% accuracy on its held-out Financial PhraseBank `Sentences_AllAgree` test split).
 
 **The simplest, most readable financial NLP model you can actually understand.**
 
@@ -18,7 +18,7 @@ Feed it a financial headline. Get back a structured market signal.
 ```python
 from finbert.signals import SignalExtractor
 
-extractor = SignalExtractor()
+extractor = SignalExtractor.pretrained()  # the checkpoint shipped in this repo
 signal = extractor.extract(
     "SpaceX's long-anticipated IPO filing sent aerospace stocks soaring to record highs"
 )
@@ -28,18 +28,19 @@ print(signal.to_dict())
 ```json
 {
   "text": "SpaceX's long-anticipated IPO filing sent aerospace stocks soaring to record highs",
-  "sentiment": "positive",
-  "confidence": 0.82,
-  "entities": ["SpaceX", "aerospace"],
+  "sentiment": "neutral",
+  "confidence": 0.9811,
+  "entities": ["SpaceX"],
   "sectors": ["aerospace", "equities"],
   "event_type": "ipo",
-  "impact_score": 0.71,
-  "signal_direction": "bullish"
+  "impact_score": 0.446,
+  "signal_direction": "neutral"
 }
 ```
 
-*Sample output above is illustrative. `SignalExtractor.pretrained()` loads the checkpoint that
-ships with this repo (see [Shipped checkpoint](#shipped-checkpoint)); `SignalExtractor()` with
+*Output above is from a real run of this snippet. `SignalExtractor.pretrained()` loads the checkpoint that
+ships with this repo (see [Shipped checkpoint](#shipped-checkpoint)), so the result is the same on every run;
+that small model reads this headline as neutral. `SignalExtractor()` with
 no checkpoint uses randomly initialized weights, so `sentiment`, `confidence`, `impact_score`, and `signal_direction`
 vary between runs. `entities`, `sectors`, and `event_type` come from the deterministic rule
 layer in `signals.py` and stay stable regardless of model weights. See
@@ -52,10 +53,10 @@ result.*
 > |---|---|---|
 > | Goal | *Learn* the internals | *Use* it for real accuracy |
 > | Build | From scratch, 1.88M params, annotated | MiniLM (33M) fine-tuned |
-> | Accuracy | **Shipped checkpoint (MIT-licensed tweet data): 76.0% held-out test, macro-F1 0.680** ([details](#shipped-checkpoint)). **55.2% held-out test, macro-F1 0.539** (full 3,279-phrase Financial PhraseBank, 15 epochs); **65.4%** with masked-token pretraining plus teacher-labeled news ([distillation](#distillation-experiment)) | **95.29%** on its own test split (the all-annotators-agree subset); **74.3%** on this repo's harder test split |
+> | Accuracy | **Shipped checkpoint (MIT-licensed tweet data): 76.0% held-out test, macro-F1 0.680** ([details](#shipped-checkpoint)). **55.2% held-out test, macro-F1 0.539** (full 3,279-phrase Financial PhraseBank, 15 epochs); **65.4%** with masked-token pretraining plus teacher-labeled news ([distillation](#distillation-experiment)) | **96.47%** (v2, current) on its own test split (the all-annotators-agree subset); **74.3%** on this repo's harder test split (v1; v2 not measured there) |
 > | Where | Here, on GitHub | **[🤗 9mark9/finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** |
 >
-> The two headline numbers come from different test sets, so they are not directly comparable. The production model's **95.29% / macro-F1 0.937** are the numbers on its own Hugging Face card, from a fine-tuned 33M-param MiniLM evaluated on the `Sentences_AllAgree` subset of [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank), where every annotator agreed. This repo's test split also contains the sentences annotators disagreed on; on that split the same production model scores **74.3% / macro-F1 0.746** (and some of those sentences may have been in its training data). This repo's **55.2% / macro-F1 0.539** are from training the from-scratch 1.88M-param model in this repo end-to-end (`python scripts/train.py --data-path data/financial_phrasebank.json --epochs 15`) — see [Training](#training) for the full per-class breakdown and what the gap to the production model tells you about model capacity. Use the linked production model when you need real-world accuracy; use this repo to actually understand how a transformer sentiment classifier is built.
+> The two headline numbers come from different test sets, so they are not directly comparable. The production model's **96.47% / macro-F1 0.9532** are the v2 numbers in its Hugging Face card's model-index (measured 2026-10-27), from a fine-tuned 33M-param MiniLM evaluated on a stratified 15% test split (340 sentences) of the `Sentences_AllAgree` subset of [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank), where every annotator agreed. v2 is trained on PhraseBank plus finance tweets and news headlines; v1 (PhraseBank only, git tag `v1-phrasebank-only` on the model repo) scored **95.29% / 0.937** on the same split. This repo's test split also contains the sentences annotators disagreed on; on that split v1, the revision this repo's distillation scripts pin (`fdbfec0` in `scripts/pins.py`, same weights as the `v1-phrasebank-only` tag), scores **74.3% / macro-F1 0.746** (and some of those sentences may have been in its training data). v2 has not been scored on this split. This repo's **55.2% / macro-F1 0.539** are from training the from-scratch 1.88M-param model in this repo end-to-end (`python scripts/train.py --data-path data/financial_phrasebank.json --epochs 15`) — see [Training](#training) for the full per-class breakdown and what the gap to the production model tells you about model capacity. Use the linked production model when you need real-world accuracy; use this repo to actually understand how a transformer sentiment classifier is built.
 
 ---
 
@@ -95,7 +96,7 @@ inspectable and needs no labelled data for entities/sectors/events.
 | Total parameters | 1,882,243 (embedding 1,057,024 · encoder 791,552 · norm 256 · pooler 16,512 · sentiment head 16,899) |
 | Training device | CPU (no GPU needed) |
 
-**Tech stack:** PyTorch 2.x (model + training), a hand-written BPE tokenizer (no `tokenizers`/`transformers` dependency), FastAPI + Uvicorn (serving), pytest (429 test functions across the suite).
+**Tech stack:** PyTorch 2.x (model + training), a hand-written BPE tokenizer (no `tokenizers`/`transformers` dependency), FastAPI + Uvicorn (serving), pytest (430 test functions across the suite).
 
 ## How it works
 
@@ -216,11 +217,11 @@ accuracy: 0.552   macro_f1: 0.539
 
 Only the data split is seeded; weight initialisation is not, so a re-run lands within about a point of these figures (a re-run on 2026-10-11 gave accuracy 0.558, macro-F1 0.547).
 
-Training loss drops to ~0.12 while validation loss climbs to ~1.97 by epoch 15 — the 1.88M-param model overfits the 2,295-example training set well before 15 epochs (best val accuracy, 0.607, is hit mid-run, not at the end). That gap, and the roughly 19-point accuracy gap to the 33M-param production model on this same test split (74.3%), is the real, honest cost of "from scratch, no pretraining" at this parameter count — not a bug to patch, but exactly the kind of result this repo exists to make visible and inspectable.
+Training loss drops to ~0.12 while validation loss climbs to ~1.97 by epoch 15 — the 1.88M-param model overfits the 2,295-example training set well before 15 epochs (best val accuracy, 0.607, is hit mid-run, not at the end). That gap, and the roughly 19-point accuracy gap to the 33M-param production model (v1) on this same test split (74.3%), is the real, honest cost of "from scratch, no pretraining" at this parameter count — not a bug to patch, but exactly the kind of result this repo exists to make visible and inspectable.
 
 **Quick smoke test** (5 epochs on the 198-phrase sample set, via the quick-start command above) just verifies the tokenizer/architecture/training loop work end-to-end — it's not a meaningful benchmark on its own.
 
-**Want real-world accuracy?** Use the fine-tuned **[finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** variant — MiniLM (33M) fine-tuned on the same Financial PhraseBank, reaching **95.29% accuracy / macro-F1 0.937** on its own held-out test split.
+**Want real-world accuracy?** Use the fine-tuned **[finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** variant — MiniLM (33M) fine-tuned on Financial PhraseBank plus finance tweets and news headlines. Its card reports **96.47% accuracy / macro-F1 0.9532** for v2 on its held-out PhraseBank `Sentences_AllAgree` test split (340 sentences); v1, trained on PhraseBank only, scored 95.29% / 0.937 there.
 
 ### Shipped checkpoint
 
@@ -283,12 +284,12 @@ All rows are on the same 491-sentence held-out test split, with the checkpoint c
 |---|---|---|
 | Original recipe (above) | 0.552 | 0.539 |
 | Control: distillation settings, no extra data | 0.507 | 0.482 |
-| + 17,747 sentences labeled by the production model | 0.623 | 0.617 |
+| + 17,747 sentences labeled by the production model (v1) | 0.623 | 0.617 |
 | + 15,000 sentences labeled by a teacher fine-tuned on this training split, mean of 3 seeds | **0.633** (0.627 to 0.642) | 0.634 |
 | Same, trained on the teacher's probabilities instead of hard labels | 0.635 | 0.638 |
 | Same (hard labels), encoder first pretrained with masked-token prediction on 40,295 unlabeled sentences, mean of 3 seeds | **0.654** (0.646 to 0.668) | 0.654 |
 | TF-IDF (1-2 grams) + logistic regression, for reference | 0.633 | 0.619 |
-| Teacher: production model as published | 0.743 | 0.746 |
+| Teacher: production model v1 (revision pinned in `scripts/pins.py`) | 0.743 | 0.746 |
 | Teacher: fine-tuned on this training split | 0.825 | 0.830 |
 
 What it shows:
@@ -337,7 +338,7 @@ nano-finbert/
 ├── src/finbert/weights/ # shipped checkpoint, tokenizer and run metrics
 ├── data/samples/       # 198 labeled financial phrases
 ├── data/eval/          # 90 labeled headlines for scripts/eval_sentiment.py
-├── tests/              # pytest suite (429 test functions: model, tokenizer, signals, API)
+├── tests/              # pytest suite (430 test functions: model, tokenizer, signals, API)
 └── scripts/            # train.py + infer.py + eval_sentiment.py CLIs, train_tfns.py (shipped checkpoint), distillation experiment scripts
 ```
 
