@@ -288,8 +288,10 @@ class TestTrainStep:
         assert trainer.global_step == 1
 
     def test_loss_decreases_with_repeated_steps(self, tmp_path):
-        """After many steps the loss should move (not necessarily down in 1 step,
-        but at least show training is running)."""
+        """Repeatedly training on one fixed, trivially separable batch (constant
+        input, constant label) must drive the loss down — the core sign that the
+        from-scratch forward/backward/optimiser loop actually learns."""
+        torch.manual_seed(0)  # deterministic weight init so the assert is stable
         trainer = _tiny_trainer(tmp_path)
         trainer.model.train()
         # Fix a single batch to track loss
@@ -299,11 +301,12 @@ class TestTrainStep:
             "label": torch.zeros(2, dtype=torch.long),
         }
         losses = []
-        for _ in range(5):
+        for _ in range(30):
             loss, _ = trainer._train_step(batch)
             losses.append(loss)
-        # At least the loss should be finite
         assert all(math.isfinite(loss_val) for loss_val in losses)
+        # The model should overfit this one batch: final loss well below the first.
+        assert losses[-1] < losses[0]
 
 
 # ---------------------------------------------------------------------------

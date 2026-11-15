@@ -5,7 +5,7 @@ Architecture overview:
   - 4 encoder layers
   - 128 hidden dimensions
   - 4 attention heads
-  - 512 max sequence length
+  - 256 max sequence length
   - ~2M parameters (runs on CPU)
 
 Inspired by Andrej Karpathy's nanoGPT: simple, readable, educational.
