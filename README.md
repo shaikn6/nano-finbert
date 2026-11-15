@@ -99,7 +99,7 @@ inspectable and needs no labelled data for entities/sectors/events.
 | Total parameters | 1,882,243 (embedding 1,057,024 · encoder 791,552 · norm 256 · pooler 16,512 · sentiment head 16,899) |
 | Training device | CPU (no GPU needed) |
 
-**Tech stack:** PyTorch 2.x (model + training), a hand-written BPE tokenizer (no `tokenizers`/`transformers` dependency), FastAPI + Uvicorn (serving), pytest (430 test functions across the suite).
+**Tech stack:** PyTorch 2.x (model + training), a hand-written BPE tokenizer (no `tokenizers`/`transformers` dependency), FastAPI + Uvicorn (serving), pytest (433 test functions across the suite).
 
 ## How it works
 
@@ -327,6 +327,14 @@ These scripts need `transformers`, `datasets` and `scikit-learn`, which the core
 | Output | Structured `FinancialSignal` | Raw logits / token labels |
 | Purpose | Learning + prototyping | Production NLP |
 
+**Not the same as the fine-tuned siblings.** Two companion repos also do financial
+sentiment, but by adapting pretrained models rather than building one:
+[fin-lora](https://github.com/shaikn6/fin-lora) adapts a 0.5B model (Qwen2.5-0.5B) with
+LoRA, and [finarena](https://github.com/shaikn6/finarena) is a serving API that routes
+between a TF-IDF baseline and that LoRA model. nano-finbert is the only one with **no
+pretrained weights and its own from-scratch BPE tokenizer** — the point here is to see
+every layer, not to match their accuracy.
+
 ## Project Structure
 
 ```
@@ -341,7 +349,7 @@ nano-finbert/
 ├── src/finbert/weights/ # shipped checkpoint, tokenizer and run metrics
 ├── data/samples/       # 198 labeled financial phrases
 ├── data/eval/          # 90 labeled headlines for scripts/eval_sentiment.py
-├── tests/              # pytest suite (430 test functions: model, tokenizer, signals, API)
+├── tests/              # pytest suite (433 test functions: model, tokenizer, signals, API)
 └── scripts/            # train.py + infer.py + eval_sentiment.py CLIs, train_tfns.py (shipped checkpoint), distillation experiment scripts
 ```
 

@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from finbert.tokenizer import (
     FinancialTokenizer,
     build_default_tokenizer,
@@ -153,6 +155,22 @@ class TestDecode:
     def test_decode_unknown_id_returns_unk(self, trained_tokenizer):
         decoded = trained_tokenizer.decode([99999], skip_special_tokens=False)
         assert "[UNK]" in decoded
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Apple earnings beat estimates",
+            "Bitcoin dropped below 60000",
+            "Gold futures fell",
+        ],
+    )
+    def test_encode_decode_roundtrip_recovers_characters(self, trained_tokenizer, text):
+        """BPE is lossless over characters: the merged sub-words decode back to the
+        original (lowercased) character stream. The tokenizer joins sub-words with
+        spaces on decode, so compare with whitespace removed."""
+        ids = trained_tokenizer.encode(text, padding=False)["input_ids"]
+        decoded = trained_tokenizer.decode(ids)
+        assert decoded.replace(" ", "") == text.lower().replace(" ", "")
 
 
 class TestPersistence:
