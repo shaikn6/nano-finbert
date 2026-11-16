@@ -11,6 +11,7 @@ All notable changes to this project are documented here.
 - Tokenizer round-trip test asserting `decode(encode(text))` recovers the original character stream (BPE is lossless over characters), and a strengthened training-step test that asserts the loss actually falls while overfitting one fixed batch
 
 ### Changed
+- README production-model numbers updated to the current v3 card (97.94% / macro-F1 0.9643 on the PhraseBank `Sentences_AllAgree` test split; v2 96.47%, v1 95.29%); a Limitations section; the PhraseBank and distillation figures are marked as console output of runs with no committed result file
 - README now positions nano-finbert against the fine-tuned sibling repos (`fin-lora`, `finarena`): it is the only one with no pretrained weights and its own from-scratch BPE tokenizer
 - `SignalExtractor` now exposes `trained` (False when no checkpoint is loaded) and logs a warning; the API adds `trained` and `warning` to `/extract`, `/extract/batch`, `/health` and `/model/info` so random-weight output is not mistaken for real predictions. `/health` `model_loaded` is unchanged (service is up)
 - README no longer presents the production model's 95.29% and this model's 55.2% as scores on the same test set; the production model scores 74.3% on this repo's test split

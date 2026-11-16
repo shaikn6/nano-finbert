@@ -11,7 +11,7 @@ training loop), with a deterministic rule layer that turns a headline into a str
 
 > **Live demo (companion model, not this one):** the [Hugging Face Space](https://huggingface.co/spaces/9mark9/nano-finbert-demo)
 > runs [finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment), a fine-tuned 33M-parameter
-> MiniLM (v2: 96.47% accuracy on its held-out Financial PhraseBank `Sentences_AllAgree` test split). It does not run
+> MiniLM (v3: 97.94% accuracy on its held-out Financial PhraseBank `Sentences_AllAgree` test split). It does not run
 > the from-scratch model in this repo; see the comparison below.
 
 nano-finbert is a tiny transformer encoder (**1,882,243 parameters**) built **from scratch** on financial text — its own BPE tokenizer, its own multi-head attention, its own training loop, no pretrained weights, no HuggingFace dependency, no black boxes. Inspired by Andrej Karpathy's [nanoGPT](https://github.com/karpathy/nanoGPT), every component is annotated to explain *why* it exists, not just what it does.
@@ -56,10 +56,10 @@ result.*
 > |---|---|---|
 > | Goal | *Learn* the internals | *Use* it for real accuracy |
 > | Build | From scratch, 1.88M params, annotated | MiniLM (33M) fine-tuned |
-> | Accuracy | **Shipped checkpoint (MIT-licensed tweet data): 76.0% held-out test, macro-F1 0.680** ([details](#shipped-checkpoint)). **55.2% held-out test, macro-F1 0.539** (full 3,279-phrase Financial PhraseBank, 15 epochs); **65.4%** with masked-token pretraining plus teacher-labeled news ([distillation](#distillation-experiment)) | **96.47%** (v2, current) on its own test split (the all-annotators-agree subset); **74.3%** on this repo's harder test split (v1; v2 not measured there) |
+> | Accuracy | **Shipped checkpoint (MIT-licensed tweet data): 76.0% held-out test, macro-F1 0.680** ([details](#shipped-checkpoint)). **55.2% held-out test, macro-F1 0.539** (full 3,279-phrase Financial PhraseBank, 15 epochs); **65.4%** with masked-token pretraining plus teacher-labeled news ([distillation](#distillation-experiment)) | **97.94%** (v3, current) on its own test split (the all-annotators-agree subset); **74.3%** on this repo's harder test split (v1; v2 and v3 not measured there) |
 > | Where | Here, on GitHub | **[9mark9/finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** |
 >
-> The two headline numbers come from different test sets, so they are not directly comparable. The production model's **96.47% / macro-F1 0.9532** are the v2 numbers in its Hugging Face card's model-index (measured 2026-10-27), from a fine-tuned 33M-param MiniLM evaluated on a stratified 15% test split (340 sentences) of the `Sentences_AllAgree` subset of [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank), where every annotator agreed. v2 is trained on PhraseBank plus finance tweets and news headlines; v1 (PhraseBank only, git tag `v1-phrasebank-only` on the model repo) scored **95.29% / 0.937** on the same split. This repo's test split also contains the sentences annotators disagreed on; on that split v1, the revision this repo's distillation scripts pin (`fdbfec0` in `scripts/pins.py`, same weights as the `v1-phrasebank-only` tag), scores **74.3% / macro-F1 0.746** (and some of those sentences may have been in its training data). v2 has not been scored on this split. This repo's **55.2% / macro-F1 0.539** are from training the from-scratch 1.88M-param model in this repo end-to-end (`python scripts/train.py --data-path data/financial_phrasebank.json --epochs 15`) — see [Training](#training) for the full per-class breakdown and what the gap to the production model tells you about model capacity. Use the linked production model when you need real-world accuracy; use this repo to actually understand how a transformer sentiment classifier is built.
+> The two headline numbers come from different test sets, so they are not directly comparable. The production model's **97.94% / macro-F1 0.9643** are the v3 numbers in its Hugging Face card's model-index (measured 2026-10-28), from a fine-tuned 33M-param MiniLM evaluated on a stratified 15% test split (340 sentences) of the `Sentences_AllAgree` subset of [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank), where every annotator agreed. v3 is the weight average of ten runs trained on PhraseBank plus finance tweets and news headlines; v2 (one run on the same sources, git tag `v2-mixed-domain`) scored **96.47% / 0.9532** and v1 (PhraseBank only, git tag `v1-phrasebank-only`) **95.29% / 0.937** on the same split. This repo's test split also contains the sentences annotators disagreed on; on that split v1, the revision this repo's distillation scripts pin (`fdbfec0` in `scripts/pins.py`, same weights as the `v1-phrasebank-only` tag), scores **74.3% / macro-F1 0.746** (and some of those sentences may have been in its training data). v2 and v3 have not been scored on this split. This repo's **55.2% / macro-F1 0.539** are from training the from-scratch 1.88M-param model in this repo end-to-end (`python scripts/train.py --data-path data/financial_phrasebank.json --epochs 15`) — see [Training](#training) for the full per-class breakdown and what the gap to the production model tells you about model capacity. Use the linked production model when you need real-world accuracy; use this repo to actually understand how a transformer sentiment classifier is built.
 
 ---
 
@@ -99,7 +99,7 @@ inspectable and needs no labelled data for entities/sectors/events.
 | Total parameters | 1,882,243 (embedding 1,057,024 · encoder 791,552 · norm 256 · pooler 16,512 · sentiment head 16,899) |
 | Training device | CPU (no GPU needed) |
 
-**Tech stack:** PyTorch 2.x (model + training), a hand-written BPE tokenizer (no `tokenizers`/`transformers` dependency), FastAPI + Uvicorn (serving), pytest (433 test functions across the suite).
+**Tech stack:** PyTorch 2.x (model + training), a hand-written BPE tokenizer (no `tokenizers`/`transformers` dependency), FastAPI + Uvicorn (serving), pytest (433 tests, 98% line coverage; CI fails under 95%).
 
 ## How it works
 
@@ -218,13 +218,13 @@ positive       0.529     0.542     0.535       203
 accuracy: 0.552   macro_f1: 0.539
 ```
 
-Only the data split is seeded; weight initialisation is not, so a re-run lands within about a point of these figures (a re-run on 2026-10-11 gave accuracy 0.558, macro-F1 0.547).
+Only the data split is seeded; weight initialisation is not, so a re-run lands within about a point of these figures (a re-run on 2026-10-11 gave accuracy 0.558, macro-F1 0.547). These PhraseBank figures, and the distillation table below, are copied from the console output of those runs: no result file is committed, because the dataset's license does not allow redistributing it. To check them you need your own PhraseBank copy and the commands shown. The shipped checkpoint's numbers further down are different: they come from the committed `src/finbert/weights/metrics.json`.
 
 Training loss drops to ~0.12 while validation loss climbs to ~1.97 by epoch 15 — the 1.88M-param model overfits the 2,295-example training set well before 15 epochs (best val accuracy, 0.607, is hit mid-run, not at the end). That gap, and the roughly 19-point accuracy gap to the 33M-param production model (v1) on this same test split (74.3%), is the real, honest cost of "from scratch, no pretraining" at this parameter count — not a bug to patch, but exactly the kind of result this repo exists to make visible and inspectable.
 
 **Quick smoke test** (5 epochs on the 198-phrase sample set, via the quick-start command above) just verifies the tokenizer/architecture/training loop work end-to-end — it's not a meaningful benchmark on its own.
 
-**Want real-world accuracy?** Use the fine-tuned **[finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** variant — MiniLM (33M) fine-tuned on Financial PhraseBank plus finance tweets and news headlines. Its card reports **96.47% accuracy / macro-F1 0.9532** for v2 on its held-out PhraseBank `Sentences_AllAgree` test split (340 sentences); v1, trained on PhraseBank only, scored 95.29% / 0.937 there.
+**Want real-world accuracy?** Use the fine-tuned **[finbert-minilm-sentiment](https://huggingface.co/9mark9/finbert-minilm-sentiment)** variant — MiniLM (33M) fine-tuned on Financial PhraseBank plus finance tweets and news headlines. Its card reports **97.94% accuracy / macro-F1 0.9643** for v3 on its held-out PhraseBank `Sentences_AllAgree` test split (340 sentences); v2 scored 96.47% / 0.9532 and v1, trained on PhraseBank only, 95.29% / 0.937 there.
 
 ### Shipped checkpoint
 
@@ -316,6 +316,22 @@ PYTHONPATH=src python scripts/pretrain_mlm.py --out-dir work/r3 --tok-path work/
 
 These scripts need `transformers`, `datasets` and `scikit-learn`, which the core package does not depend on.
 
+## Limitations
+
+- **It is a teaching model, not a production classifier.** The shipped checkpoint (76.0% accuracy, macro-F1 0.680 on
+  2,345 held-out tweets) beats always-neutral but loses to a TF-IDF + logistic-regression baseline (82.8%, 0.753) on
+  the same split. Use the production model linked above when accuracy matters.
+- **One seed, small test sets.** The shipped checkpoint is a single training run; the 90-headline eval set has a
+  standard error of about 5 points and one author's labels.
+- **Domain shift.** Trained on tweets with inputs truncated to 64 tokens; accuracy drops on news-style headlines
+  (0.68) and long texts are not evaluated.
+- **The PhraseBank and distillation numbers are not backed by committed result files** (see [Training](#training)).
+- **The structured fields are rules, not learning.** `entities`, `sectors` and `event_type` come from keyword and
+  regex rules in `signals.py`, so they miss phrasing the rules do not cover; `impact_score` is a pattern count damped
+  by model confidence, and `signal_direction` is a direct mapping of the learned sentiment. For example, "Gold futures fell 2.3% amid dollar strength and Fed rate hike concerns" is tagged
+  `rate_decision` and comes out `bullish` with the shipped checkpoint.
+- Not investment advice; no backtest links any signal to returns.
+
 ## What's different from FinBERT / HuggingFace?
 
 | | nano-finbert | FinBERT (HuggingFace) |
@@ -349,7 +365,7 @@ nano-finbert/
 ├── src/finbert/weights/ # shipped checkpoint, tokenizer and run metrics
 ├── data/samples/       # 198 labeled financial phrases
 ├── data/eval/          # 90 labeled headlines for scripts/eval_sentiment.py
-├── tests/              # pytest suite (433 test functions: model, tokenizer, signals, API)
+├── tests/              # pytest suite (433 tests: model, tokenizer, signals, API)
 └── scripts/            # train.py + infer.py + eval_sentiment.py CLIs, train_tfns.py (shipped checkpoint), distillation experiment scripts
 ```
 
